@@ -1,9 +1,10 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { 
   Play, Pause, Download, Settings, Layers, 
   Image as ImageIcon, Type, Activity, ChevronLeft, 
   Video, Monitor, Volume2, VolumeX, Square, 
-  RefreshCcw, Check, MousePointer2, Move, Sparkles
+  RefreshCcw, Check, MousePointer2, Move, Sparkles, Palette
 } from 'lucide-react';
 import { VisualizerConfig } from '../types';
 
@@ -159,6 +160,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   const streamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  
+  // Image Refs
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const centerImageRef = useRef<HTMLImageElement | null>(null);
   
@@ -170,19 +173,31 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   const particlesRef = useRef<Particle[]>([]);
 
   // --- INITIALIZATION ---
+  
+  // Dynamic Image Loading Effects
   useEffect(() => {
-    // Load Images if they exist in config
     if (config.backgroundImage) {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.src = config.backgroundImage;
-        bgImageRef.current = img;
+        img.onload = () => { bgImageRef.current = img; };
+    } else {
+        bgImageRef.current = null;
     }
+  }, [config.backgroundImage]);
+
+  useEffect(() => {
     if (config.centerImage) {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.src = config.centerImage;
-        centerImageRef.current = img;
+        img.onload = () => { centerImageRef.current = img; };
+    } else {
+        centerImageRef.current = null;
     }
+  }, [config.centerImage]);
 
+  useEffect(() => {
     // Audio Setup
     const initAudio = () => {
       if (audioContextRef.current) return;
@@ -265,7 +280,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       ctx.fillRect(0, 0, w, h);
 
       // 2. BG Image
-      if (bgImageRef.current && bgImageRef.current.complete && cfg.backgroundImage) {
+      if (bgImageRef.current && cfg.backgroundImage) {
         ctx.save();
         if (cfg.bgImageBlur > 0) ctx.filter = `blur(${cfg.bgImageBlur}px)`;
         ctx.globalAlpha = cfg.bgImageOpacity;
@@ -324,55 +339,147 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
         ctx.shadowColor = cfg.primaryColor;
         rotationAngle += cfg.rotationSpeed * 0.005;
 
+        // Base Radius for Circular mode
+        const radius = 300 * (cfg.spectrumScale || 1.0);
+        
+        // Gradient logic
+        let fillStyle: string | CanvasGradient = cfg.primaryColor;
+        if (cfg.colorMode === 'gradient') {
+            const grad = ctx.createLinearGradient(0, h/2 - 200, 0, h/2 + 200);
+            grad.addColorStop(0, cfg.primaryColor);
+            grad.addColorStop(1, cfg.secondaryColor);
+            fillStyle = grad;
+        }
+
         const barsToRender = Math.min(cfg.barCount, dataArray.length || 64);
         
+        // --- CIRCULAR MODE ---
         if (cfg.mode === 'circular') {
-            const radius = 300;
             ctx.translate(cx, cy);
             ctx.rotate(rotationAngle);
             if (isBeat) ctx.scale(1.02, 1.02);
 
             const step = Math.floor((dataArray.length || 64) / barsToRender);
             
-            for (let i = 0; i < barsToRender; i++) {
-                const val = dataArray.length ? dataArray[i * step] : 10;
-                const barH = (val * cfg.sensitivity * cfg.barHeightScale) + 5;
-                const angle = (i / barsToRender) * Math.PI * 2;
-                
-                const x1 = Math.cos(angle) * radius;
-                const y1 = Math.sin(angle) * radius;
-                const x2 = Math.cos(angle) * (radius + barH);
-                const y2 = Math.sin(angle) * (radius + barH);
-
-                ctx.strokeStyle = i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor;
-                ctx.lineWidth = cfg.barWidth;
-                ctx.lineCap = 'round';
+            if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
+                // WAVE / CURVE
                 ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.stroke();
+                ctx.strokeStyle = fillStyle;
+                ctx.fillStyle = fillStyle;
+                ctx.lineWidth = cfg.barWidth;
+                
+                // Draw curve points
+                for (let i = 0; i <= barsToRender; i++) {
+                    // Wrap around logic for seamless circle
+                    const index = i === barsToRender ? 0 : i; 
+                    const val = dataArray.length ? dataArray[index * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * 0.5);
+                    const angle = (i / barsToRender) * Math.PI * 2;
+                    
+                    const r = radius + barH;
+                    const x = Math.cos(angle) * r;
+                    const y = Math.sin(angle) * r;
+                    
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+
+                if (cfg.spectrumStyle === 'curve') {
+                   // Filled Curve
+                   ctx.closePath();
+                   // Create inner circle hole to fill out
+                   ctx.arc(0, 0, radius, 0, Math.PI * 2, true); 
+                   ctx.globalAlpha = 0.5;
+                   ctx.fill();
+                   ctx.globalAlpha = 1.0;
+                   ctx.stroke();
+                } else {
+                    // Just Line Wave
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+
+            } else {
+                // BARS
+                for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale) + 5;
+                    const angle = (i / barsToRender) * Math.PI * 2;
+                    
+                    const x1 = Math.cos(angle) * radius;
+                    const y1 = Math.sin(angle) * radius;
+                    const x2 = Math.cos(angle) * (radius + barH);
+                    const y2 = Math.sin(angle) * (radius + barH);
+
+                    ctx.strokeStyle = cfg.colorMode === 'solid' 
+                         ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor)
+                         : fillStyle;
+                         
+                    ctx.lineWidth = cfg.barWidth;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                }
             }
-        } else {
-            // Linear Mode
+        } 
+        
+        // --- LINEAR MODE ---
+        else {
             const barW = w / barsToRender;
             const step = Math.floor((dataArray.length || 64) / barsToRender);
 
-            for (let i = 0; i < barsToRender; i++) {
-                const val = dataArray.length ? dataArray[i * step] : 10;
-                const barH = (val * cfg.sensitivity * cfg.barHeightScale * 3);
-                const x = i * barW;
-                
-                ctx.fillStyle = i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor;
+            if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
+                 ctx.beginPath();
+                 ctx.strokeStyle = fillStyle;
+                 ctx.fillStyle = fillStyle;
+                 ctx.lineWidth = cfg.barWidth;
 
-                if (cfg.mirror) {
-                    const centerOffset = Math.abs((barsToRender/2) - i);
-                    const mirrorVal = dataArray.length ? dataArray[centerOffset * step] : 10;
-                    const mirrorH = (mirrorVal * cfg.sensitivity * cfg.barHeightScale * 3);
+                 for (let i = 0; i <= barsToRender; i++) {
+                    const index = Math.min(i, barsToRender - 1);
+                    const val = dataArray.length ? dataArray[index * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * 2 * (cfg.spectrumScale || 1.0));
                     
-                    const y = (h / 2) - (mirrorH / 2);
-                    ctx.fillRect(x, y, barW - 1, mirrorH);
-                } else {
-                    ctx.fillRect(x, h - barH, barW - 1, barH);
+                    const x = i * barW;
+                    const y = h - barH;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                 }
+                 
+                 if (cfg.spectrumStyle === 'curve') {
+                     ctx.lineTo(w, h);
+                     ctx.lineTo(0, h);
+                     ctx.closePath();
+                     ctx.globalAlpha = 0.6;
+                     ctx.fill();
+                     ctx.globalAlpha = 1.0;
+                 } else {
+                     ctx.stroke();
+                 }
+
+            } else {
+                // BARS
+                for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * 3 * (cfg.spectrumScale || 1.0));
+                    const x = i * barW;
+                    
+                    ctx.fillStyle = cfg.colorMode === 'solid' 
+                         ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor)
+                         : fillStyle;
+
+                    if (cfg.mirror) {
+                        const centerOffset = Math.abs((barsToRender/2) - i);
+                        const mirrorVal = dataArray.length ? dataArray[centerOffset * step] : 10;
+                        const mirrorH = (mirrorVal * cfg.sensitivity * cfg.barHeightScale * 3 * (cfg.spectrumScale || 1.0));
+                        
+                        const y = (h / 2) - (mirrorH / 2);
+                        ctx.fillRect(x, y, barW - 1, mirrorH);
+                    } else {
+                        ctx.fillRect(x, h - barH, barW - 1, barH);
+                    }
                 }
             }
         }
@@ -380,7 +487,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       }
 
       // 6. Center Image
-      if (centerImageRef.current && centerImageRef.current.complete && cfg.centerImage) {
+      if (centerImageRef.current && cfg.centerImage) {
           const baseSize = 350 * cfg.centerImageSize;
           const pulse = isBeat ? 1.03 : 1.0;
           const size = baseSize * pulse;
@@ -661,20 +768,43 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                     {/* SPECTRUM CONFIG */}
                     {activeLayer === 'spectrum' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
-                             <ControlGroup title="Configuration">
+                             <ControlGroup title="Mode">
                                 <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 mb-4">
                                     <button onClick={() => setConfig({...config, mode: 'circular'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.mode==='circular' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Circular</button>
                                     <button onClick={() => setConfig({...config, mode: 'linear'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.mode==='linear' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Linear</button>
                                 </div>
+                                
+                                <div className="mb-4">
+                                    <label className="text-xs text-zinc-300 font-medium mb-2 block">Style</label>
+                                    <select 
+                                        value={config.spectrumStyle || 'bars'} 
+                                        onChange={e => setConfig({...config, spectrumStyle: e.target.value as any})}
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="bars">Bars (Equalizer)</option>
+                                        <option value="wave">Line Wave</option>
+                                        <option value="curve">Filled Curve</option>
+                                    </select>
+                                </div>
+
                                 <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
                                     <span className="text-zinc-300">Enable Spectrum</span>
                                     <input type="checkbox" checked={config.showBars} onChange={e => setConfig({...config, showBars: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
                                 </div>
+                             </ControlGroup>
+
+                             <ControlGroup title="Dimensions">
+                                <Slider label="Scale / Size" min={0.5} max={2.0} step={0.1} value={config.spectrumScale || 1.0} onChange={(v) => setConfig({...config, spectrumScale: v})} />
                                 <Slider label="Bar Count" min={32} max={256} step={16} value={config.barCount} onChange={(v) => setConfig({...config, barCount: v})} />
                                 <Slider label="Bar Width" min={1} max={20} step={1} value={config.barWidth} onChange={(v) => setConfig({...config, barWidth: v})} />
                                 <Slider label="Amplitude" min={0.5} max={3} step={0.1} value={config.barHeightScale} onChange={(v) => setConfig({...config, barHeightScale: v})} />
                              </ControlGroup>
+                             
                              <ControlGroup title="Appearance">
+                                <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                    <span className="text-zinc-300">Gradient Color</span>
+                                    <input type="checkbox" checked={config.colorMode === 'gradient'} onChange={e => setConfig({...config, colorMode: e.target.checked ? 'gradient' : 'solid'})} className="accent-indigo-500 w-4 h-4" />
+                                </div>
                                 <div className="space-y-3">
                                     <ColorPicker label="Primary Color" value={config.primaryColor} onChange={(v) => setConfig({...config, primaryColor: v})} />
                                     <ColorPicker label="Secondary Color" value={config.secondaryColor} onChange={(v) => setConfig({...config, secondaryColor: v})} />

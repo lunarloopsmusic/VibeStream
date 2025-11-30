@@ -37,6 +37,7 @@ export interface VisualizerConfig {
   primaryColor: string;
   secondaryColor: string;
   backgroundColor: string;
+  colorMode: 'solid' | 'gradient'; // New
 
   // Assets
   backgroundImage: string | null;
@@ -56,6 +57,8 @@ export interface VisualizerConfig {
   
   // Spectrum
   showBars: boolean;
+  spectrumStyle: 'bars' | 'wave' | 'curve'; // New
+  spectrumScale: number; // New (Radius or Height multiplier)
   barCount: number;
   barWidth: number;
   barHeightScale: number;

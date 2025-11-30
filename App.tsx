@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppStep, AudioFile, VisualizerConfig } from './types';
 import { AudioUploader } from './components/AudioUploader';
@@ -89,7 +90,7 @@ export default function App() {
 
   return (
     // Changed overflow-hidden to allow scrolling on landing page if needed, but fixed height to avoid layout shift
-    <div className="h-screen w-screen bg-[#020202] text-zinc-100 flex flex-col font-sans selection:bg-indigo-500/30">
+    <div className="h-screen w-screen bg-[#020202] text-zinc-100 flex flex-col font-sans selection:bg-indigo-500/30 overflow-hidden">
       
       {/* Background Ambience */}
       <div className="fixed inset-0 pointer-events-none z-0">

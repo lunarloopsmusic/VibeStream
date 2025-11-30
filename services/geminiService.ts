@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { VisualizerConfig } from "../types";
 
@@ -72,9 +73,12 @@ export const analyzeAudioForVisualizer = async (
     primaryColor: "#a855f7",
     secondaryColor: "#3b82f6",
     backgroundColor: "#050505",
+    colorMode: "gradient",
     sensitivity: 1.5,
     smoothing: 0.8,
     showBars: true,
+    spectrumStyle: "bars",
+    spectrumScale: 1.0,
     barCount: 64,
     barWidth: 6,
     barHeightScale: 1.5,
