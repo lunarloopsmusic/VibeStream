@@ -5,7 +5,8 @@ import {
   Image as ImageIcon, Type, Activity, ChevronLeft, 
   Video, Monitor, Volume2, VolumeX, Square, 
   RefreshCcw, Check, X, Film, Clock, FileVideo,
-  Sparkles, Zap, FileText, Wand2, AlertTriangle, Mic
+  Sparkles, Zap, FileText, Wand2, AlertTriangle, Mic,
+  Upload
 } from 'lucide-react';
 import { VisualizerConfig, LyricLine } from '../types';
 import { generateLyrics } from '../services/geminiService';
@@ -119,6 +120,54 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => 
         </div>
     </div>
 );
+
+// --- LRC PARSING HELPER ---
+const parseLRC = (lrc: string): { content: string, syncData: LyricLine[] } => {
+    const lines = lrc.split('\n');
+    const syncData: LyricLine[] = [];
+    const textLines: string[] = [];
+    
+    // Regex for [mm:ss.xx] or [mm:ss:xx]
+    const timeRegex = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/;
+    
+    lines.forEach(line => {
+        const match = line.match(timeRegex);
+        if (match) {
+            const min = parseInt(match[1]);
+            const sec = parseInt(match[2]);
+            const ms = parseInt(match[3]);
+            
+            let timeInSec = min * 60 + sec;
+            
+            // Normalize MS: if length is 2 (e.g. .50), it usually means centiseconds (500ms)
+            // If length is 3 (e.g. .500), it is milliseconds.
+            if (match[3].length === 3) {
+                timeInSec += ms / 1000;
+            } else {
+                timeInSec += ms / 100;
+            }
+
+            const cleanText = line.replace(/\[.*?\]/g, '').trim();
+            // Only add if there is text (ignores blank timestamp lines sometimes used for spacing)
+            if (cleanText) {
+                syncData.push({ time: timeInSec, text: cleanText });
+                textLines.push(cleanText);
+            }
+        } else {
+             // Plain text line
+             const cleanText = line.trim();
+             // Skip metadata tags like [ar: Artist]
+             if (cleanText && !cleanText.startsWith('[') && !cleanText.startsWith('id:')) {
+                 textLines.push(cleanText);
+             }
+        }
+    });
+
+    // If parsing failed to find stamps, return original as content with empty sync
+    if (syncData.length === 0) return { content: lrc, syncData: [] };
+
+    return { content: textLines.join('\n'), syncData };
+};
 
 // --- PARTICLE CLASS ---
 class Particle {
@@ -322,6 +371,42 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   const timeRef = useRef<number>(0);
 
   // --- ACTIONS ---
+
+  const handleLyricsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (!text) return;
+
+        if (file.name.toLowerCase().endsWith('.lrc')) {
+             const { content, syncData } = parseLRC(text);
+             setConfig(prev => ({
+                 ...prev,
+                 lyrics: {
+                     ...prev.lyrics,
+                     content,
+                     syncData,
+                     enabled: true
+                 }
+             }));
+        } else {
+             // Plain text
+             setConfig(prev => ({
+                 ...prev,
+                 lyrics: {
+                     ...prev.lyrics,
+                     content: text,
+                     syncData: [], // Clear sync data if plain text
+                     enabled: true
+                 }
+             }));
+        }
+    };
+    reader.readAsText(file);
+  };
 
   const handleGenerateLyrics = async () => {
     if (isGeneratingLyrics) return;
@@ -1638,14 +1723,22 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     </div>
                                 )}
                                 
-                                <button 
-                                    onClick={handleGenerateLyrics}
-                                    disabled={isGeneratingLyrics || isSyncing}
-                                    className="w-full mb-2 flex items-center justify-center gap-2 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                                >
-                                    {isGeneratingLyrics ? <div className="animate-spin w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> : <Wand2 size={14} />}
-                                    {isGeneratingLyrics ? "ANALYZING..." : "AUTO-SYNC LYRICS"}
-                                </button>
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <button 
+                                        onClick={handleGenerateLyrics}
+                                        disabled={isGeneratingLyrics || isSyncing}
+                                        className="flex items-center justify-center gap-2 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                    >
+                                        {isGeneratingLyrics ? <div className="animate-spin w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> : <Wand2 size={14} />}
+                                        {isGeneratingLyrics ? "..." : "AUTO-SYNC"}
+                                    </button>
+                                    
+                                    <label className="flex items-center justify-center gap-2 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                                        <Upload size={14} />
+                                        UPLOAD LRC
+                                        <input type="file" accept=".lrc,.txt" className="hidden" onChange={handleLyricsUpload} />
+                                    </label>
+                                </div>
                                 
                                 <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
                                     <span className="text-zinc-300">Show Lyrics</span>
@@ -1655,12 +1748,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <textarea 
                                     value={config.lyrics?.content ?? ""}
                                     onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, content: e.target.value}}))}
-                                    placeholder="Paste or generate lyrics here..."
+                                    placeholder="Paste lyrics or upload .LRC file..."
                                     disabled={isSyncing}
                                     className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-zinc-300 font-mono focus:border-indigo-500 outline-none resize-none disabled:opacity-50"
                                 />
                                 <div className="text-[10px] text-zinc-500 mt-1 italic">
-                                    Format: One line per phrase.
+                                    Supported: .LRC (Time Tags) or Plain Text
                                 </div>
                             </ControlGroup>
                             
