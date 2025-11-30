@@ -10,7 +10,6 @@ const getClient = async (): Promise<GoogleGenAI> => {
     }
   } catch (e) {}
 
-  // Fallback for AI Studio preview
   const win = window as any;
   if (!apiKey && win.aistudio && (await win.aistudio.hasSelectedApiKey())) {
       // Key injected internally
@@ -23,45 +22,79 @@ const getClient = async (): Promise<GoogleGenAI> => {
   return new GoogleGenAI({ apiKey: apiKey });
 };
 
-/**
- * Analyzes audio to determine advanced visualizer settings.
- * Uses Gemini 2.5 Flash (Free Tier).
- */
 export const analyzeAudioForVisualizer = async (
   base64Audio: string,
-  mimeType: string
+  mimeType: string,
+  fileName: string
 ): Promise<VisualizerConfig> => {
   const ai = await getClient();
   
-  const prompt = `Listen to this audio track. I am building a complex audio visualizer like Vizzy.io.
+  // Sanitize filename for display
+  const cleanName = fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+
+  const prompt = `Listen to this audio track. I am building a professional music visualizer.
   Return a JSON object configuration that matches the mood of the song.
   
-  The schema must be:
+  Schema:
   {
-    "presetName": "Creative name for this vibe",
+    "presetName": "string",
     "mode": "circular" | "linear",
     "primaryColor": "hex",
     "secondaryColor": "hex",
-    "backgroundColor": "hex (usually dark)",
-    "sensitivity": number (0.5 to 2.5),
-    "smoothing": number (0.5 to 0.9),
+    "backgroundColor": "hex",
+    "sensitivity": number (0.5-2.5),
+    "smoothing": number (0.5-0.9),
     "showBars": boolean,
-    "barCount": number (64 for simple, 128 for detailed),
-    "barWidth": number (2 to 20),
-    "barHeightScale": number (1.0 to 2.5),
-    "mirror": boolean (true for symmetry),
+    "barCount": number,
+    "barWidth": number,
+    "barHeightScale": number,
+    "mirror": boolean,
     "showParticles": boolean,
-    "particleCount": number (50 to 200),
-    "particleSpeed": number (1 to 5),
-    "bloomStrength": number (10 to 40),
-    "rotationSpeed": number (-2 to 2)
-  }
+    "particleCount": number,
+    "particleSpeed": number,
+    "bloomStrength": number,
+    "rotationSpeed": number
+  }`;
 
-  Logic:
-  - EDM/Trap/Bass: Mode="circular", High sensitivity, High bloom, Particles=true.
-  - Lo-Fi/Ambient: Mode="linear", Low sensitivity, High smoothing, Pastel colors.
-  - Rock/Metal: Mode="linear", Red/Black colors, High particle speed, Mirror=true.
-  `;
+  // Default "Safety" Config
+  const defaultConfig: VisualizerConfig = {
+    presetName: "Default Pulse",
+    mode: "circular",
+    primaryColor: "#a855f7",
+    secondaryColor: "#3b82f6",
+    backgroundColor: "#050505",
+    sensitivity: 1.5,
+    smoothing: 0.8,
+    showBars: true,
+    barCount: 64,
+    barWidth: 6,
+    barHeightScale: 1.5,
+    mirror: false,
+    showParticles: true,
+    particleCount: 50,
+    particleSpeed: 2,
+    bloomStrength: 20,
+    rotationSpeed: 0.5,
+    cinematicBars: false,
+    vignette: 0.3,
+    backgroundImage: null,
+    bgImageOpacity: 0.5,
+    bgImageBlur: 0,
+    centerImage: null,
+    centerImageSize: 1.0,
+    centerImageCircular: true,
+    text: {
+      enabled: true,
+      topText: cleanName,
+      bottomText: "AUDIO VISUALIZER",
+      fontFamily: "Inter",
+      fontSize: 40,
+      color: "#ffffff",
+      opacity: 0.9,
+      letterSpacing: 2,
+      shadow: true
+    }
+  };
 
   try {
     const response = await ai.models.generateContent({
@@ -80,44 +113,17 @@ export const analyzeAudioForVisualizer = async (
     const jsonText = response.text || "{}";
     const parsed = JSON.parse(jsonText);
     
-    // Merge with defaults to ensure all fields (including new image fields) exist
     return {
+      ...defaultConfig,
       ...parsed,
-      backgroundImage: null,
-      bgImageOpacity: 0.5,
-      bgImageBlur: 0,
-      centerImage: null,
-      centerImageSize: 1.0,
-      centerImageCircular: true,
+      text: {
+        ...defaultConfig.text,
+        color: parsed.primaryColor || "#ffffff" // Match text to primary color
+      }
     };
 
   } catch (e) {
     console.error("Gemini Analysis Failed", e);
-    // Fallback config
-    return {
-      presetName: "Fallback Rhythm",
-      mode: "circular",
-      primaryColor: "#a855f7",
-      secondaryColor: "#3b82f6",
-      backgroundColor: "#09090b",
-      sensitivity: 1.5,
-      smoothing: 0.8,
-      showBars: true,
-      barCount: 64,
-      barWidth: 6,
-      barHeightScale: 1.5,
-      mirror: false,
-      showParticles: true,
-      particleCount: 50,
-      particleSpeed: 2,
-      bloomStrength: 20,
-      rotationSpeed: 0.5,
-      backgroundImage: null,
-      bgImageOpacity: 0.5,
-      bgImageBlur: 0,
-      centerImage: null,
-      centerImageSize: 1.0,
-      centerImageCircular: true,
-    };
+    return defaultConfig;
   }
 };

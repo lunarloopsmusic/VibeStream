@@ -4,7 +4,7 @@ import { AppStep, AudioFile, VisualizerConfig } from './types';
 import { AudioUploader } from './components/AudioUploader';
 import { AudioVisualizer } from './components/AudioVisualizer';
 import { analyzeAudioForVisualizer } from './services/geminiService';
-import { Music, Youtube, Film, CheckCircle2, Palette } from 'lucide-react';
+import { Sparkles, Zap, Aperture, CheckCircle2, ChevronRight } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
@@ -46,7 +46,7 @@ export default function App() {
 
       const mimeType = getMimeType(file);
       const url = URL.createObjectURL(file);
-      setAudioFile({ file, url, base64: '', mimeType });
+      setAudioFile({ file, url, base64: '', mimeType, name: file.name });
       setError(null);
       setStep(AppStep.ANALYZING);
 
@@ -59,7 +59,7 @@ export default function App() {
 
       const base64 = await fileToBase64(blobForAnalysis);
       
-      const config = await analyzeAudioForVisualizer(base64, mimeType);
+      const config = await analyzeAudioForVisualizer(base64, mimeType, file.name);
       setVisualizerConfig(config);
       setStep(AppStep.VISUALIZER);
 
@@ -78,85 +78,108 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-[#09090b] text-zinc-100 flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-xl shrink-0 z-50">
-        <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <Film size={18} className="text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight">VibeStream</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm font-medium text-zinc-400">
-            <div className="hidden md:flex items-center gap-2">
-              <Music size={16} />
-              <span>Audio Analysis</span>
-            </div>
-            <div className="hidden md:flex items-center gap-2">
-              <Palette size={16} />
-              <span>Studio Editor</span>
-            </div>
-            <div className="hidden md:flex items-center gap-2 text-purple-400">
-              <Youtube size={16} />
-              <span>Free & Unlimited</span>
-            </div>
-          </div>
+    <div className="h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-purple-500/30">
+      
+      {/* Dynamic Background */}
+      {step !== AppStep.VISUALIZER && (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/10 rounded-full blur-[150px]" />
+            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[150px]" />
+            <div className="absolute top-[40%] left-[50%] translate-x-[-50%] w-[800px] h-[500px] bg-blue-900/5 rounded-full blur-[120px]" />
         </div>
-      </header>
+      )}
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
-        {step !== AppStep.VISUALIZER && (
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
-        )}
-        
-        <div className={`w-full max-w-[1920px] mx-auto z-10 flex flex-col h-full ${step !== AppStep.VISUALIZER ? 'p-6 items-center justify-center' : ''}`}>
-          
-          {error && (
-            <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center flex items-center justify-center gap-2 shrink-0">
+      {/* Header - Only Show on Landing */}
+      {step !== AppStep.VISUALIZER && (
+        <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-tr from-white to-zinc-400 rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
+                    <Aperture className="text-black" size={24} />
+                </div>
+                <span className="font-bold text-2xl tracking-tight text-white">VibeStream</span>
+            </div>
+            <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
+                <a href="#" className="hover:text-white transition-colors">Features</a>
+                <a href="#" className="hover:text-white transition-colors">Showcase</a>
+                <a href="#" className="px-5 py-2 rounded-full bg-white/5 hover:bg-white/10 text-white border border-white/5 transition-all">
+                    Start Creating
+                </a>
+            </nav>
+        </header>
+      )}
+
+      <main className="flex-1 relative z-10 flex flex-col">
+        {error && (
+            <div className="absolute top-24 left-1/2 -translate-x-1/2 p-4 glass rounded-xl text-red-200 flex items-center gap-3 shadow-xl animate-in slide-in-from-top-4">
               <CheckCircle2 size={20} className="text-red-400 rotate-45" />
               <span>{error}</span>
             </div>
-          )}
+        )}
 
-          {step === AppStep.UPLOAD && (
-            <div className="space-y-8 animate-in fade-in zoom-in duration-300 mt-[-100px]">
-              <div className="text-center space-y-4">
-                <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-500">
-                  Visualize your sound.
-                </h1>
-                <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto">
-                  Upload your music track. Our AI generates a custom visualizer style,
-                  and our Pro Editor lets you tweak every detail.
-                </p>
-              </div>
-              <AudioUploader onFileSelected={handleFileSelect} />
+        {/* Landing State */}
+        {step === AppStep.UPLOAD && (
+            <div className="flex-1 flex flex-col items-center justify-center px-6">
+                <div className="text-center max-w-4xl mx-auto space-y-6 mb-16 animate-in fade-in zoom-in duration-500">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-semibold tracking-wide uppercase mb-4">
+                        <Sparkles size={12} /> AI-Powered Audio Visualization
+                    </div>
+                    <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
+                        Transform Sound <br/>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 animate-pulse">Into Cinema.</span>
+                    </h1>
+                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+                        Upload your music. Our Gemini AI analyzes the mood. <br className="hidden md:block"/>
+                        You get a professional, broadcast-ready music video in seconds.
+                    </p>
+                </div>
+                
+                <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
+                    <AudioUploader onFileSelected={handleFileSelect} />
+                </div>
+
+                <div className="mt-16 flex items-center justify-center gap-8 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+                     <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
+                        <Zap size={16} /> Fast Render
+                     </div>
+                     <div className="w-1 h-1 bg-zinc-800 rounded-full" />
+                     <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
+                        <Sparkles size={16} /> 4K Ready
+                     </div>
+                     <div className="w-1 h-1 bg-zinc-800 rounded-full" />
+                     <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
+                        <Aperture size={16} /> No Watermark
+                     </div>
+                </div>
             </div>
-          )}
+        )}
 
-          {step === AppStep.ANALYZING && (
-            <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in h-[60vh]">
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full border-4 border-zinc-800 border-t-purple-500 animate-spin"></div>
-                <Music className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-purple-500" size={32} />
-              </div>
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-white">Configuring Visual Engine...</h2>
-                <p className="text-zinc-400">Gemini is matching colors and physics to your music.</p>
-              </div>
+        {/* Analyzing State */}
+        {step === AppStep.ANALYZING && (
+            <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-500">
+                <div className="relative w-32 h-32">
+                    <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30"></div>
+                    <div className="absolute inset-0 rounded-full border-t-2 border-indigo-500 animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Zap className="text-indigo-400 animate-pulse" size={40} />
+                    </div>
+                </div>
+                <div className="text-center space-y-2">
+                    <h2 className="text-3xl font-bold text-white">Synthesizing Visuals</h2>
+                    <p className="text-zinc-400">AI is analyzing {audioFile?.name || 'audio'} frequency & mood...</p>
+                </div>
             </div>
-          )}
+        )}
 
-          {step === AppStep.VISUALIZER && audioFile && visualizerConfig && (
-            <AudioVisualizer 
-              audioUrl={audioFile.url}
-              config={visualizerConfig}
-              onBack={handleReset}
-            />
-          )}
-
-        </div>
+        {/* Editor State */}
+        {step === AppStep.VISUALIZER && audioFile && visualizerConfig && (
+            <div className="w-full h-full animate-in fade-in duration-500 bg-black">
+                <AudioVisualizer 
+                    audioUrl={audioFile.url}
+                    config={visualizerConfig}
+                    onBack={handleReset}
+                />
+            </div>
+        )}
       </main>
     </div>
   );

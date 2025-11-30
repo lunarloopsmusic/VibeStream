@@ -10,11 +10,24 @@ export interface AudioFile {
   url: string;
   base64: string;
   mimeType: string;
+  name: string;
+}
+
+export interface TextConfig {
+  enabled: boolean;
+  topText: string;
+  bottomText: string;
+  fontFamily: string; // 'Inter', 'Playfair Display', 'Monospace'
+  fontSize: number;
+  color: string;
+  opacity: number;
+  letterSpacing: number;
+  shadow: boolean;
 }
 
 export interface VisualizerConfig {
   // General
-  presetName: string; // e.g., "Neon Pulse"
+  presetName: string;
   mode: 'circular' | 'linear';
   
   // Colors
@@ -22,25 +35,28 @@ export interface VisualizerConfig {
   secondaryColor: string;
   backgroundColor: string;
 
-  // Assets (New)
-  backgroundImage: string | null; // Data URL
-  bgImageOpacity: number; // 0 to 1
-  bgImageBlur: number; // 0 to 20px
+  // Assets
+  backgroundImage: string | null;
+  bgImageOpacity: number;
+  bgImageBlur: number;
   
-  centerImage: string | null; // Data URL (Logo)
-  centerImageSize: number; // 0.1 to 2.0 scale
+  centerImage: string | null;
+  centerImageSize: number;
   centerImageCircular: boolean;
 
+  // Typography (New)
+  text: TextConfig;
+
   // Audio Reactivity
-  sensitivity: number; // 0.1 to 3.0
-  smoothing: number; // 0.1 to 0.9
+  sensitivity: number;
+  smoothing: number;
   
-  // Spectrum (Bars)
+  // Spectrum
   showBars: boolean;
-  barCount: number; // 32 to 256
-  barWidth: number; // 1 to 50
-  barHeightScale: number; // 0.5 to 3.0
-  mirror: boolean; // For linear mode
+  barCount: number;
+  barWidth: number;
+  barHeightScale: number;
+  mirror: boolean;
 
   // Particles
   showParticles: boolean;
@@ -48,6 +64,8 @@ export interface VisualizerConfig {
   particleSpeed: number;
 
   // Effects
-  bloomStrength: number; // 0 to 50
-  rotationSpeed: number; // -5 to 5 (for circular)
+  bloomStrength: number;
+  rotationSpeed: number;
+  cinematicBars: boolean; // New: 16:9 Letterbox effect on top/bottom
+  vignette: number; // 0 to 1
 }
