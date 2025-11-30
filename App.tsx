@@ -88,7 +88,8 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#020202] text-zinc-100 flex flex-col font-sans overflow-hidden selection:bg-indigo-500/30">
+    // Changed overflow-hidden to allow scrolling on landing page if needed, but fixed height to avoid layout shift
+    <div className="h-screen w-screen bg-[#020202] text-zinc-100 flex flex-col font-sans selection:bg-indigo-500/30">
       
       {/* Background Ambience */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -99,21 +100,23 @@ export default function App() {
       </div>
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-[1400px] mx-auto w-full">
-          <div className="flex items-center gap-3">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-[1400px] mx-auto w-full pointer-events-none">
+          {/* Pointer events auto on children to make buttons clickable if added later */}
+          <div className="flex items-center gap-3 pointer-events-auto">
               <div className="w-8 h-8 bg-white/10 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center">
                   <Aperture className="text-white" size={18} />
               </div>
-              <span className="font-bold text-xl tracking-tight text-white/90">VibeStream</span>
+              <span className="font-bold text-xl tracking-tight text-white/90">Vizzy Studio</span>
           </div>
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-500">
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-500 pointer-events-auto">
              <span className="flex items-center gap-1.5"><Cpu size={14}/> Gemini 2.5 Engine</span>
              <span className="w-1 h-1 rounded-full bg-zinc-800" />
              <span className="flex items-center gap-1.5"><Layers size={14}/> Real-time Rendering</span>
           </div>
       </header>
 
-      <main className="flex-1 relative z-10 flex flex-col h-full">
+      {/* Main Content Area - Added overflow-y-auto to allow scrolling on small screens/tall content */}
+      <main className="flex-1 relative z-10 flex flex-col h-full overflow-y-auto custom-scrollbar">
         {error && (
             <div className="absolute top-24 left-1/2 -translate-x-1/2 p-4 bg-red-900/20 border border-red-500/20 rounded-xl text-red-200 flex items-center gap-3 shadow-xl animate-in slide-in-from-top-4 z-50 backdrop-blur-md">
               <CheckCircle2 size={20} className="text-red-400 rotate-45" />
@@ -123,7 +126,7 @@ export default function App() {
 
         {/* Landing State */}
         {step === AppStep.UPLOAD && (
-            <div className="flex-1 flex flex-col items-center justify-center px-6 relative">
+            <div className="min-h-full flex flex-col items-center justify-center px-6 py-24 relative">
                 <div className="max-w-5xl mx-auto w-full text-center mb-12">
                     
                     {/* Badge */}
@@ -155,7 +158,7 @@ export default function App() {
                 </div>
 
                 {/* Footer Tech Specs */}
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-8 md:gap-16 text-[10px] md:text-xs font-mono text-zinc-600 uppercase tracking-widest animate-in fade-in duration-1000 delay-700 pointer-events-none">
+                <div className="mt-20 flex justify-center gap-8 md:gap-16 text-[10px] md:text-xs font-mono text-zinc-600 uppercase tracking-widest animate-in fade-in duration-1000 delay-700 pointer-events-none">
                     <span>4K Resolution Support</span>
                     <span>60 FPS Export</span>
                     <span>Hardware Accelerated</span>

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { Upload, Music, FileAudio, ArrowRight } from 'lucide-react';
 
 interface AudioUploaderProps {
@@ -7,6 +7,7 @@ interface AudioUploaderProps {
 
 export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -19,6 +20,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
   );
 
   const validateAndUpload = (file: File) => {
+    // Simple check - most browsers populate type, but extension fallback is safer
     const isAudioType = file?.type.startsWith('audio/');
     const hasAudioExtension = file?.name.match(/\.(mp3|wav|ogg|m4a|flac|aac|wma)$/i);
 
@@ -33,12 +35,17 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
     }
   };
 
+  const handleBoxClick = () => {
+    inputRef.current?.click();
+  };
+
   return (
     <div className="w-full">
       <div
         onDrop={handleDrop}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
+        onClick={handleBoxClick}
         className={`
             relative group cursor-pointer transition-all duration-500 ease-out
             border border-dashed rounded-2xl p-10 text-center overflow-hidden backdrop-blur-sm
@@ -48,6 +55,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
         `}
       >
         <input
+          ref={inputRef}
           type="file"
           accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac"
           onChange={handleChange}
