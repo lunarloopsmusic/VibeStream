@@ -25,6 +25,17 @@ export interface TextConfig {
   shadow: boolean;
 }
 
+export interface LyricsConfig {
+  enabled: boolean;
+  content: string; // Raw string with newlines
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  animationStyle: 'static' | 'highlight' | 'scroll' | 'karaoke';
+  opacity: number;
+  yOffset: number;
+}
+
 export interface VisualizerConfig {
   // Global / Scene
   presetName: string;
@@ -32,15 +43,15 @@ export interface VisualizerConfig {
   rotationSpeed: number;
   cinematicBars: boolean;
   vignette: number;
-  shakeStrength: number; // New: Bass Shake
+  shakeStrength: number;
   
   // Colors
   primaryColor: string;
   secondaryColor: string;
   backgroundColor: string;
   colorMode: 'solid' | 'gradient'; 
-  rainbowMode: boolean; // New
-  colorCycleSpeed: number; // New
+  rainbowMode: boolean;
+  colorCycleSpeed: number;
 
   // Assets
   backgroundImage: string | null;
@@ -53,6 +64,7 @@ export interface VisualizerConfig {
 
   // Typography
   text: TextConfig;
+  lyrics: LyricsConfig; // New
 
   // Audio Reactivity
   sensitivity: number;
@@ -65,8 +77,8 @@ export interface VisualizerConfig {
   barCount: number;
   barWidth: number;
   barHeightScale: number;
-  barRoundness: number; // New
-  fillOpacity: number; // New
+  barRoundness: number;
+  fillOpacity: number;
   mirror: boolean;
   bloomStrength: number;
 

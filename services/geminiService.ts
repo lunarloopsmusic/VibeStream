@@ -32,6 +32,30 @@ const cleanJsonString = (str: string): string => {
   }
 };
 
+export const generateLyrics = async (base64Audio: string, mimeType: string): Promise<string> => {
+  const ai = await getClient();
+  const prompt = `Listen to this audio. Accurately transcribe the lyrics. 
+  Format the output as simple text, broken into natural lines (verses/chorus). 
+  Do not include [Verse], [Chorus] labels. Just the lyrics. 
+  If it is instrumental, return "Instrumental - No Lyrics".`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          { inlineData: { mimeType: mimeType, data: base64Audio } },
+          { text: prompt },
+        ],
+      }
+    });
+    return response.text || "";
+  } catch (e) {
+    console.error("Lyrics Generation Failed", e);
+    return "Could not generate lyrics. Please paste them manually.";
+  }
+};
+
 export const analyzeAudioForVisualizer = async (
   base64Audio: string,
   mimeType: string,
@@ -113,6 +137,16 @@ export const analyzeAudioForVisualizer = async (
       opacity: 0.9,
       letterSpacing: 2,
       shadow: true
+    },
+    lyrics: {
+      enabled: false,
+      content: "",
+      fontFamily: "Montserrat",
+      fontSize: 32,
+      color: "#ffffff",
+      animationStyle: "highlight",
+      opacity: 0.9,
+      yOffset: 0
     }
   };
 

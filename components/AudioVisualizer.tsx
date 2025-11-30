@@ -5,9 +5,10 @@ import {
   Image as ImageIcon, Type, Activity, ChevronLeft, 
   Video, Monitor, Volume2, VolumeX, Square, 
   RefreshCcw, Check, X, Film, Clock, FileVideo,
-  Sparkles, Zap
+  Sparkles, Zap, FileText, Wand2
 } from 'lucide-react';
 import { VisualizerConfig } from '../types';
+import { generateLyrics } from '../services/geminiService';
 
 interface AudioVisualizerProps {
   audioUrl: string;
@@ -16,13 +17,11 @@ interface AudioVisualizerProps {
 }
 
 // --- CONSTANTS ---
-// Base resolution for logic calculations (1080p). 
-// All drawing commands scale relative to this.
 const BASE_WIDTH = 1920;
 const BASE_HEIGHT = 1080;
 
 // --- TYPES FOR EDITOR STATE ---
-type LayerType = 'scene' | 'spectrum' | 'particles' | 'background' | 'foreground' | 'text';
+type LayerType = 'scene' | 'spectrum' | 'particles' | 'background' | 'foreground' | 'text' | 'lyrics';
 
 interface LayerItem {
     id: LayerType;
@@ -36,7 +35,8 @@ const LAYERS: LayerItem[] = [
     { id: 'particles', label: 'Particle System', icon: Sparkles },
     { id: 'background', label: 'Background Layer', icon: ImageIcon },
     { id: 'foreground', label: 'Center Asset', icon: Layers },
-    { id: 'text', label: 'Text Overlay', icon: Type },
+    { id: 'text', label: 'Title Overlay', icon: Type },
+    { id: 'lyrics', label: 'Lyrics', icon: FileText },
 ];
 
 interface ExportSettings {
@@ -167,6 +167,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   const [activeLayer, setActiveLayer] = useState<LayerType>('scene');
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
 
   // Export Settings
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
@@ -199,6 +200,37 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   // Particles Ref
   const particlesRef = useRef<Particle[]>([]);
   const timeRef = useRef<number>(0);
+
+  // --- ACTIONS ---
+
+  const handleGenerateLyrics = async () => {
+    setIsGeneratingLyrics(true);
+    try {
+        // Fetch audio blob from url
+        const response = await fetch(audioUrl);
+        const blob = await response.blob();
+        
+        // Convert to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+             const base64 = (reader.result as string).split(',')[1];
+             const lyrics = await generateLyrics(base64, blob.type);
+             setConfig(prev => ({
+                 ...prev,
+                 lyrics: {
+                     ...prev.lyrics,
+                     enabled: true,
+                     content: lyrics
+                 }
+             }));
+             setIsGeneratingLyrics(false);
+        }
+    } catch (e) {
+        console.error(e);
+        setIsGeneratingLyrics(false);
+    }
+  };
 
   // --- INITIALIZATION ---
   
@@ -276,9 +308,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       if (!ctx || !canvas) return;
       const cfg = configRef.current;
       
-      // Determine Dimensions based on mode
-      // If Exporting, we rely on the canvas width set by startExport()
-      // If Editing, we force 1080p for consistent preview
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
           canvas.width = BASE_WIDTH;
           canvas.height = BASE_HEIGHT;
@@ -286,10 +315,19 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       
       const w = canvas.width;
       const h = canvas.height;
-      const scaleFactor = w / BASE_WIDTH; // Scaling logic for 4K support
+      const scaleFactor = w / BASE_WIDTH; 
       
       let cx = w / 2;
       let cy = h / 2;
+
+      // Update time manually if recording to ensure smoothness, otherwise rely on audio
+      let currentPlayTime = 0;
+      let currentDuration = 1;
+      
+      if (audioRef.current) {
+         currentPlayTime = audioRef.current.currentTime;
+         currentDuration = audioRef.current.duration || 1;
+      }
 
       timeRef.current += 0.01 * (cfg.colorCycleSpeed || 0.5);
 
@@ -523,7 +561,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           ctx.restore();
       }
 
-      // 6. Text
+      // 6. Text (Title)
       if (cfg.text.enabled) {
           ctx.save();
           ctx.translate(shakeX, shakeY);
@@ -532,7 +570,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           
-          // Apply Spacing (Modern Canvas API)
           if ('letterSpacing' in ctx) {
               (ctx as any).letterSpacing = `${cfg.text.letterSpacing * scaleFactor}px`;
           }
@@ -552,7 +589,122 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           ctx.restore();
       }
 
-      // 7. Cinematic Overlay
+      // 7. LYRICS
+      if (cfg.lyrics?.enabled && cfg.lyrics.content.trim().length > 0) {
+          ctx.save();
+          ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor));
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          
+          const lines = cfg.lyrics.content.split('\n').filter(l => l.trim() !== '');
+          const totalLines = lines.length;
+          
+          // Simple evenly distributed Sync logic:
+          // In a real app, we would have precise timestamps. 
+          // Here we distribute lines across the duration.
+          // Padding start/end by 5% so lyrics don't start immediately or end abruptly
+          const effectiveDuration = currentDuration * 0.9; 
+          const effectiveTime = Math.max(0, currentPlayTime - (currentDuration * 0.05));
+          const progress = Math.min(1, Math.max(0, effectiveTime / effectiveDuration));
+          
+          const currentLineIndex = Math.floor(progress * totalLines);
+          const scaledFontSize = cfg.lyrics.fontSize * scaleFactor;
+          ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
+
+          if (cfg.lyrics.animationStyle === 'scroll') {
+              // Scroll Mode
+              // Show window of lines moving up
+              const windowSize = 5;
+              const lineHeight = scaledFontSize * 1.5;
+              const scrollOffset = (progress * totalLines * lineHeight) - (windowSize * lineHeight / 2);
+
+              ctx.beginPath();
+              ctx.rect(-w/2, -h/2 + 200 * scaleFactor, w, h/2); // clip bottom area
+              ctx.clip();
+              
+              lines.forEach((line, i) => {
+                  const y = (i * lineHeight) - scrollOffset + (200 * scaleFactor); // base offset
+                  // Fade out edges
+                  const distFromCenter = Math.abs(y - (200 * scaleFactor));
+                  const opacity = Math.max(0, 1 - (distFromCenter / (lineHeight * 3)));
+                  
+                  if (opacity > 0) {
+                      ctx.fillStyle = cfg.lyrics.color;
+                      ctx.globalAlpha = opacity * cfg.lyrics.opacity;
+                      ctx.fillText(line, 0, y);
+                  }
+              });
+
+          } else {
+              // Highlight / Karaoke / Static Mode
+              const activeLine = lines[currentLineIndex] || "";
+              const prevLine = lines[currentLineIndex - 1] || "";
+              const nextLine = lines[currentLineIndex + 1] || "";
+              
+              const lineHeight = scaledFontSize * 1.4;
+
+              // Previous Line (Dimmed)
+              ctx.fillStyle = cfg.lyrics.color;
+              ctx.globalAlpha = cfg.lyrics.opacity * 0.3;
+              if (cfg.lyrics.animationStyle !== 'static') {
+                  ctx.font = `normal ${scaledFontSize * 0.8}px "${cfg.lyrics.fontFamily}"`;
+                  ctx.fillText(prevLine, 0, -lineHeight);
+              }
+
+              // Active Line
+              ctx.globalAlpha = cfg.lyrics.opacity;
+              ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
+              
+              if (cfg.lyrics.animationStyle === 'karaoke') {
+                  // Simulate Karaoke fill
+                  const lineProgress = (progress * totalLines) - currentLineIndex;
+                  const charCount = Math.floor(activeLine.length * lineProgress);
+                  const filledPart = activeLine.substring(0, charCount);
+                  const emptyPart = activeLine.substring(charCount);
+                  
+                  const totalWidth = ctx.measureText(activeLine).width;
+                  const filledWidth = ctx.measureText(filledPart).width;
+                  const startX = -totalWidth / 2;
+                  
+                  // Draw filled
+                  ctx.fillStyle = cfg.primaryColor; // Use primary theme color for highlight
+                  ctx.shadowColor = cfg.primaryColor;
+                  ctx.shadowBlur = 20;
+                  ctx.fillText(filledPart, startX + (filledWidth/2), 0);
+                  ctx.shadowBlur = 0;
+                  
+                  // Draw remaining
+                  ctx.fillStyle = cfg.lyrics.color;
+                  ctx.globalAlpha = 0.5;
+                  ctx.fillText(emptyPart, startX + filledWidth + (ctx.measureText(emptyPart).width/2), 0);
+
+              } else {
+                  // Standard Highlight
+                  if (cfg.lyrics.animationStyle === 'highlight') {
+                      ctx.shadowColor = 'black';
+                      ctx.shadowBlur = 10 * scaleFactor;
+                      const pulse = isBeat ? 1.05 : 1.0;
+                      ctx.scale(pulse, pulse);
+                  }
+                  ctx.fillStyle = cfg.lyrics.color;
+                  ctx.fillText(activeLine, 0, 0);
+              }
+
+              // Next Line (Dimmed)
+              ctx.resetTransform(); // reset scale from pulse
+              ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor)); // re-translate
+              
+              ctx.fillStyle = cfg.lyrics.color;
+              ctx.globalAlpha = cfg.lyrics.opacity * 0.3;
+              if (cfg.lyrics.animationStyle !== 'static') {
+                   ctx.font = `normal ${scaledFontSize * 0.8}px "${cfg.lyrics.fontFamily}"`;
+                   ctx.fillText(nextLine, 0, lineHeight);
+              }
+          }
+          ctx.restore();
+      }
+
+      // 8. Cinematic Overlay
       if (cfg.vignette > 0) {
           ctx.save();
           const grad = ctx.createRadialGradient(cx, cy, h/2, cx, cy, h);
@@ -594,14 +746,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       }
 
       // 1. Setup Stream
-      // We assume browser supports at least one webm codec.
       const mimeType = "video/webm;codecs=vp9";
       let recorder: MediaRecorder | null = null;
       try {
         if (!MediaRecorder.isTypeSupported(mimeType)) {
-            // Fallback
             if (MediaRecorder.isTypeSupported("video/webm")) {
-                // simple webm
             } else {
                 alert("Browser doesn't support WebM export. Please use Chrome/Firefox.");
                 setIsExporting(false);
@@ -613,7 +762,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
         const audioTrack = streamDestRef.current!.stream.getAudioTracks()[0];
         stream.addTrack(audioTrack);
 
-        // Bitrate calc: Mbps -> bps
         let bits = 8000000; // 8Mbps default
         if (exportSettings.quality === 'low') bits = 4000000;
         if (exportSettings.quality === 'high') bits = 25000000; // 4K/25Mbps
@@ -642,12 +790,10 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           setDownloadUrl(url);
           setIsExporting(false);
           
-          // Disconnect monitor for better performance
           if (audioContextRef.current && analyserRef.current) {
              analyserRef.current.connect(audioContextRef.current.destination);
           }
           
-          // Reset UI state
           if (audioRef.current) audioRef.current.volume = volume;
           if (canvasRef.current) {
               canvasRef.current.width = BASE_WIDTH;
@@ -656,7 +802,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       };
 
       // 2. Play & Record
-      // Mute speakers during render, but keep stream active
       if (analyserRef.current && audioContextRef.current) {
          analyserRef.current.disconnect(audioContextRef.current.destination);
       }
@@ -719,7 +864,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                     </div>
 
                     <div className="space-y-6">
-                        {/* Resolution */}
                         <div>
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Resolution</label>
                             <div className="grid grid-cols-2 gap-2">
@@ -735,7 +879,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                             </div>
                         </div>
                         
-                        {/* FPS */}
                         <div>
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Frame Rate</label>
                             <div className="flex gap-2 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
@@ -744,7 +887,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                             </div>
                         </div>
 
-                        {/* Quality */}
                         <div>
                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Quality (Bitrate)</label>
                              <div className="flex gap-2">
@@ -1097,6 +1239,70 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                                 </div>
                              </ControlGroup>
                         </div>
+                    )}
+
+                    {/* LYRICS CONFIG */}
+                    {activeLayer === 'lyrics' && (
+                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
+                            <ControlGroup title="Content">
+                                <button 
+                                    onClick={handleGenerateLyrics}
+                                    disabled={isGeneratingLyrics}
+                                    className="w-full mb-4 flex items-center justify-center gap-2 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                >
+                                    {isGeneratingLyrics ? <div className="animate-spin w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> : <Wand2 size={14} />}
+                                    {isGeneratingLyrics ? "ANALYZING..." : "GENERATE LYRICS"}
+                                </button>
+                                
+                                <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                    <span className="text-zinc-300">Show Lyrics</span>
+                                    <input type="checkbox" checked={config.lyrics?.enabled ?? false} onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, enabled: e.target.checked}}))} className="accent-indigo-500 w-4 h-4" />
+                                </div>
+
+                                <textarea 
+                                    value={config.lyrics?.content ?? ""}
+                                    onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, content: e.target.value}}))}
+                                    placeholder="Paste or generate lyrics here..."
+                                    className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-zinc-300 font-mono focus:border-indigo-500 outline-none resize-none"
+                                />
+                                <div className="text-[10px] text-zinc-500 mt-1 italic">
+                                    Format: One line per phrase.
+                                </div>
+                            </ControlGroup>
+
+                            <ControlGroup title="Animation Style">
+                                <div className="space-y-3">
+                                    <select 
+                                        value={config.lyrics?.animationStyle ?? 'highlight'} 
+                                        onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, animationStyle: e.target.value as any}}))}
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="static">Static (Center)</option>
+                                        <option value="highlight">Highlight Active Line</option>
+                                        <option value="scroll">Scrolling Credits</option>
+                                        <option value="karaoke">Karaoke Fill</option>
+                                    </select>
+                                    
+                                    <Slider label="Vertical Offset" min={-500} max={500} step={10} value={config.lyrics?.yOffset ?? 0} onChange={(v) => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, yOffset: v}}))} />
+                                </div>
+                            </ControlGroup>
+
+                            <ControlGroup title="Typography">
+                                <div className="space-y-3">
+                                    <select value={config.lyrics?.fontFamily ?? 'Inter'} onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, fontFamily: e.target.value}}))}
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-300 outline-none focus:border-indigo-500">
+                                        <option value="Inter">Inter (Sans)</option>
+                                        <option value="Playfair Display">Playfair (Serif)</option>
+                                        <option value="Montserrat">Montserrat (Modern)</option>
+                                        <option value="Oswald">Oswald (Condensed)</option>
+                                        <option value="Dancing Script">Dancing Script (Cursive)</option>
+                                    </select>
+                                    <ColorPicker label="Text Color" value={config.lyrics?.color ?? '#ffffff'} onChange={(v) => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, color: v}}))} />
+                                    <Slider label="Font Size" min={16} max={80} step={2} value={config.lyrics?.fontSize ?? 32} onChange={(v) => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, fontSize: v}}))} />
+                                    <Slider label="Opacity" min={0} max={1} step={0.1} value={config.lyrics?.opacity ?? 0.9} onChange={(v) => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, opacity: v}}))} />
+                                </div>
+                            </ControlGroup>
+                         </div>
                     )}
                 </div>
             </div>
