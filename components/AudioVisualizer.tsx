@@ -759,14 +759,22 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                 ctx.shadowColor = textCfg.glowColor;
            }
 
-           if (textCfg.strokeWidth > 0) {
-                ctx.lineWidth = textCfg.strokeWidth * scaleFactor;
-                ctx.strokeStyle = textCfg.strokeColor;
-                ctx.strokeText(textCfg.content, 0, 0);
-           }
-           
-           ctx.fillStyle = textCfg.color;
-           ctx.fillText(textCfg.content, 0, 0);
+           // Handle Multi-line text
+           const lines = (textCfg.content || "").split('\n');
+           const lineHeight = fontSize * 1.1; 
+           // Calculate start Y to center the block vertically relative to (0,0)
+           const startY = -((lines.length - 1) * lineHeight) / 2;
+
+           lines.forEach((line, i) => {
+               const y = startY + (i * lineHeight);
+               if (textCfg.strokeWidth > 0) {
+                    ctx.lineWidth = textCfg.strokeWidth * scaleFactor;
+                    ctx.strokeStyle = textCfg.strokeColor;
+                    ctx.strokeText(line, 0, y);
+               }
+               ctx.fillStyle = textCfg.color;
+               ctx.fillText(line, 0, y);
+           });
            
            ctx.restore();
 
@@ -1511,12 +1519,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                              ) : (
                                 <ControlGroup title="Logo Design">
                                     <div className="space-y-4">
-                                        <input 
-                                            type="text" 
+                                        <textarea 
                                             value={config.centerTextConfig?.content || "LOGO"}
                                             onChange={e => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), content: e.target.value} as any})}
-                                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-white font-bold outline-none focus:border-indigo-500"
-                                            placeholder="LOGO TEXT"
+                                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-white font-bold outline-none focus:border-indigo-500 resize-none h-20"
+                                            placeholder="LOGO TEXT (Use Enter for 2 rows)"
                                         />
                                         
                                         <div>
