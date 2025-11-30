@@ -121,7 +121,7 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => 
     </div>
 );
 
-// --- LRC PARSING HELPER ---
+// --- LRC & SRT PARSING HELPER ---
 const parseLRC = (lrc: string): { content: string, syncData: LyricLine[] } => {
     const lines = lrc.split('\n');
     const syncData: LyricLine[] = [];
@@ -166,6 +166,49 @@ const parseLRC = (lrc: string): { content: string, syncData: LyricLine[] } => {
     // If parsing failed to find stamps, return original as content with empty sync
     if (syncData.length === 0) return { content: lrc, syncData: [] };
 
+    return { content: textLines.join('\n'), syncData };
+};
+
+const parseSRT = (srt: string): { content: string, syncData: LyricLine[] } => {
+    // SRT blocks are usually separated by empty lines. Normalize line endings first.
+    const blocks = srt.replace(/\r\n/g, '\n').trim().split(/\n\s*\n/);
+    const syncData: LyricLine[] = [];
+    const textLines: string[] = [];
+
+    // Regex for time line: 00:00:20,000 --> 00:00:24,400
+    // Matches: HH:MM:SS,mmm
+    const timeRegex = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})/;
+
+    blocks.forEach(block => {
+        const lines = block.split('\n').map(l => l.trim());
+        // Find the line with the timestamp arrow
+        const timeIndex = lines.findIndex(l => l.includes('-->'));
+        
+        if (timeIndex !== -1) {
+            const timeLine = lines[timeIndex];
+            const match = timeLine.match(timeRegex); // Matches start time
+            
+            if (match) {
+                const hrs = parseInt(match[1]);
+                const min = parseInt(match[2]);
+                const sec = parseInt(match[3]);
+                const ms = parseInt(match[4]);
+                
+                const startTime = (hrs * 3600) + (min * 60) + sec + (ms / 1000);
+                
+                // Text is everything after the time line
+                const textContent = lines.slice(timeIndex + 1).join(' ').replace(/<[^>]*>/g, '').trim();
+                
+                if (textContent) {
+                    syncData.push({ time: startTime, text: textContent });
+                    textLines.push(textContent);
+                }
+            }
+        }
+    });
+
+    if (syncData.length === 0) return { content: srt, syncData: [] };
+    
     return { content: textLines.join('\n'), syncData };
 };
 
@@ -381,29 +424,24 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
         const text = event.target?.result as string;
         if (!text) return;
 
-        if (file.name.toLowerCase().endsWith('.lrc')) {
-             const { content, syncData } = parseLRC(text);
-             setConfig(prev => ({
-                 ...prev,
-                 lyrics: {
-                     ...prev.lyrics,
-                     content,
-                     syncData,
-                     enabled: true
-                 }
-             }));
-        } else {
-             // Plain text
-             setConfig(prev => ({
-                 ...prev,
-                 lyrics: {
-                     ...prev.lyrics,
-                     content: text,
-                     syncData: [], // Clear sync data if plain text
-                     enabled: true
-                 }
-             }));
+        const name = file.name.toLowerCase();
+        let parsedResult: { content: string, syncData: LyricLine[] } = { content: text, syncData: [] };
+
+        if (name.endsWith('.lrc')) {
+             parsedResult = parseLRC(text);
+        } else if (name.endsWith('.srt')) {
+             parsedResult = parseSRT(text);
         }
+
+        setConfig(prev => ({
+            ...prev,
+            lyrics: {
+                ...prev.lyrics,
+                content: parsedResult.content,
+                syncData: parsedResult.syncData,
+                enabled: true
+            }
+        }));
     };
     reader.readAsText(file);
   };
@@ -1735,8 +1773,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     
                                     <label className="flex items-center justify-center gap-2 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-bold transition-all cursor-pointer">
                                         <Upload size={14} />
-                                        UPLOAD LRC
-                                        <input type="file" accept=".lrc,.txt" className="hidden" onChange={handleLyricsUpload} />
+                                        UPLOAD FILE
+                                        <input type="file" accept=".lrc,.srt,.txt" className="hidden" onChange={handleLyricsUpload} />
                                     </label>
                                 </div>
                                 
@@ -1748,12 +1786,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <textarea 
                                     value={config.lyrics?.content ?? ""}
                                     onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, content: e.target.value}}))}
-                                    placeholder="Paste lyrics or upload .LRC file..."
+                                    placeholder="Paste lyrics or upload .LRC/.SRT file..."
                                     disabled={isSyncing}
                                     className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-zinc-300 font-mono focus:border-indigo-500 outline-none resize-none disabled:opacity-50"
                                 />
                                 <div className="text-[10px] text-zinc-500 mt-1 italic">
-                                    Supported: .LRC (Time Tags) or Plain Text
+                                    Supported: .LRC, .SRT, or Plain Text
                                 </div>
                             </ControlGroup>
                             
