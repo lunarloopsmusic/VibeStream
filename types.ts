@@ -1,9 +1,7 @@
 export enum AppStep {
   UPLOAD = 'UPLOAD',
   ANALYZING = 'ANALYZING',
-  PROMPT_EDIT = 'PROMPT_EDIT',
-  GENERATING_VIDEO = 'GENERATING_VIDEO',
-  RESULT = 'RESULT',
+  VISUALIZER = 'VISUALIZER', // Replaces PROMPT_EDIT and GENERATING
 }
 
 export interface AudioFile {
@@ -13,13 +11,10 @@ export interface AudioFile {
   mimeType: string;
 }
 
-export interface GenerationConfig {
-  prompt: string;
-  aspectRatio: '16:9' | '9:16';
-  resolution: '720p' | '1080p';
-}
-
-export interface VideoResult {
-  videoUrl: string;
-  expiresAt?: Date;
+export interface VisualizerConfig {
+  style: 'bars' | 'wave' | 'orb' | 'particles';
+  primaryColor: string;
+  secondaryColor: string;
+  sensitivity: number; // 0.5 to 2.0
+  moodDescription: string;
 }
