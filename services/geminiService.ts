@@ -10,8 +10,21 @@ const getClient = async (): Promise<GoogleGenAI> => {
       await win.aistudio.openSelectKey();
     }
   }
-  // Initialize with the environment variable which is injected by the platform
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  // Initialize with the environment variable injected by the platform.
+  // We use a safety check for 'process' to avoid crashes in browser environments (like Cloudflare Pages)
+  // where 'process' might not be polyfilled by the build tool.
+  let apiKey = '';
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      apiKey = process.env.API_KEY || '';
+    }
+  } catch (e) {
+    // Ignore reference errors
+    console.warn("Could not access process.env");
+  }
+
+  return new GoogleGenAI({ apiKey: apiKey });
 };
 
 /**
@@ -91,7 +104,15 @@ export const generateVideo = async (
   // However, for the <video> src, we usually need a signed URL or a blob.
   // The SDK docs suggest fetching it. We will fetch and blob it to ensure it plays nicely.
   
-  const downloadUrl = `${videoUri}&key=${process.env.API_KEY}`;
+  // We need the key again for the fetch. 
+  let keyParam = '';
+  try {
+     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        keyParam = `&key=${process.env.API_KEY}`;
+     }
+  } catch(e) {}
+
+  const downloadUrl = `${videoUri}${keyParam}`;
   
   const videoResponse = await fetch(downloadUrl);
   if (!videoResponse.ok) {
