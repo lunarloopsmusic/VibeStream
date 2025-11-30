@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { AppStep, AudioFile, VisualizerConfig } from './types';
 import { AudioUploader } from './components/AudioUploader';
 import { AudioVisualizer } from './components/AudioVisualizer';
 import { analyzeAudioForVisualizer } from './services/geminiService';
-import { Sparkles, Zap, Aperture, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Sparkles, Zap, Aperture, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
@@ -51,7 +50,7 @@ export default function App() {
       setStep(AppStep.ANALYZING);
 
       // Slice for analysis to keep payload small for Gemini
-      const API_INLINE_LIMIT = 15 * 1024 * 1024;
+      const API_INLINE_LIMIT = 10 * 1024 * 1024;
       let blobForAnalysis: Blob = file;
       if (file.size > API_INLINE_LIMIT) {
         blobForAnalysis = file.slice(0, API_INLINE_LIMIT, mimeType);
@@ -77,40 +76,43 @@ export default function App() {
     setError(null);
   };
 
+  // If in Visualizer mode, return just the visualizer to avoid layout nesting issues
+  if (step === AppStep.VISUALIZER && audioFile && visualizerConfig) {
+      return (
+        <AudioVisualizer 
+            audioUrl={audioFile.url}
+            config={visualizerConfig}
+            onBack={handleReset}
+        />
+      );
+  }
+
   return (
-    <div className="h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-purple-500/30">
+    <div className="h-screen w-screen bg-[#050505] text-zinc-100 flex flex-col font-sans overflow-hidden">
       
-      {/* Dynamic Background */}
-      {step !== AppStep.VISUALIZER && (
-        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/10 rounded-full blur-[150px]" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[150px]" />
-            <div className="absolute top-[40%] left-[50%] translate-x-[-50%] w-[800px] h-[500px] bg-blue-900/5 rounded-full blur-[120px]" />
-        </div>
-      )}
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/10 rounded-full blur-[150px]" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[150px]" />
+      </div>
 
-      {/* Header - Only Show on Landing */}
-      {step !== AppStep.VISUALIZER && (
-        <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-tr from-white to-zinc-400 rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
-                    <Aperture className="text-black" size={24} />
-                </div>
-                <span className="font-bold text-2xl tracking-tight text-white">VibeStream</span>
-            </div>
-            <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
-                <a href="#" className="hover:text-white transition-colors">Features</a>
-                <a href="#" className="hover:text-white transition-colors">Showcase</a>
-                <a href="#" className="px-5 py-2 rounded-full bg-white/5 hover:bg-white/10 text-white border border-white/5 transition-all">
-                    Start Creating
-                </a>
-            </nav>
-        </header>
-      )}
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
+          <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-tr from-white to-zinc-400 rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
+                  <Aperture className="text-black" size={24} />
+              </div>
+              <span className="font-bold text-2xl tracking-tight text-white">VibeStream</span>
+          </div>
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
+              <button className="hover:text-white transition-colors">Features</button>
+              <button className="hover:text-white transition-colors">Showcase</button>
+          </nav>
+      </header>
 
-      <main className="flex-1 relative z-10 flex flex-col">
+      <main className="flex-1 relative z-10 flex flex-col h-full">
         {error && (
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 p-4 glass rounded-xl text-red-200 flex items-center gap-3 shadow-xl animate-in slide-in-from-top-4">
+            <div className="absolute top-24 left-1/2 -translate-x-1/2 p-4 bg-red-900/20 border border-red-500/20 rounded-xl text-red-200 flex items-center gap-3 shadow-xl animate-in slide-in-from-top-4 z-50 backdrop-blur-md">
               <CheckCircle2 size={20} className="text-red-400 rotate-45" />
               <span>{error}</span>
             </div>
@@ -136,20 +138,6 @@ export default function App() {
                 <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
                     <AudioUploader onFileSelected={handleFileSelect} />
                 </div>
-
-                <div className="mt-16 flex items-center justify-center gap-8 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-                     <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
-                        <Zap size={16} /> Fast Render
-                     </div>
-                     <div className="w-1 h-1 bg-zinc-800 rounded-full" />
-                     <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
-                        <Sparkles size={16} /> 4K Ready
-                     </div>
-                     <div className="w-1 h-1 bg-zinc-800 rounded-full" />
-                     <div className="flex items-center gap-2 text-zinc-500 text-sm font-medium">
-                        <Aperture size={16} /> No Watermark
-                     </div>
-                </div>
             </div>
         )}
 
@@ -167,17 +155,6 @@ export default function App() {
                     <h2 className="text-3xl font-bold text-white">Synthesizing Visuals</h2>
                     <p className="text-zinc-400">AI is analyzing {audioFile?.name || 'audio'} frequency & mood...</p>
                 </div>
-            </div>
-        )}
-
-        {/* Editor State */}
-        {step === AppStep.VISUALIZER && audioFile && visualizerConfig && (
-            <div className="w-full h-full animate-in fade-in duration-500 bg-black">
-                <AudioVisualizer 
-                    audioUrl={audioFile.url}
-                    config={visualizerConfig}
-                    onBack={handleReset}
-                />
             </div>
         )}
       </main>

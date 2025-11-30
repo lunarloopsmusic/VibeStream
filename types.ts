@@ -26,9 +26,12 @@ export interface TextConfig {
 }
 
 export interface VisualizerConfig {
-  // General
+  // Global / Scene
   presetName: string;
   mode: 'circular' | 'linear';
+  rotationSpeed: number;
+  cinematicBars: boolean;
+  vignette: number;
   
   // Colors
   primaryColor: string;
@@ -44,7 +47,7 @@ export interface VisualizerConfig {
   centerImageSize: number;
   centerImageCircular: boolean;
 
-  // Typography (New)
+  // Typography
   text: TextConfig;
 
   // Audio Reactivity
@@ -57,15 +60,10 @@ export interface VisualizerConfig {
   barWidth: number;
   barHeightScale: number;
   mirror: boolean;
+  bloomStrength: number;
 
   // Particles
   showParticles: boolean;
   particleCount: number;
   particleSpeed: number;
-
-  // Effects
-  bloomStrength: number;
-  rotationSpeed: number;
-  cinematicBars: boolean; // New: 16:9 Letterbox effect on top/bottom
-  vignette: number; // 0 to 1
 }

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { VisualizerConfig } from "../types";
 
@@ -22,6 +21,16 @@ const getClient = async (): Promise<GoogleGenAI> => {
   return new GoogleGenAI({ apiKey: apiKey });
 };
 
+// Helper to strip markdown code blocks if present
+const cleanJsonString = (str: string): string => {
+  try {
+    // Remove ```json ... ``` or ``` ... ```
+    return str.replace(/```json\n?|```\n?|```/g, "").trim();
+  } catch (e) {
+    return str;
+  }
+};
+
 export const analyzeAudioForVisualizer = async (
   base64Audio: string,
   mimeType: string,
@@ -33,7 +42,7 @@ export const analyzeAudioForVisualizer = async (
   const cleanName = fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
 
   const prompt = `Listen to this audio track. I am building a professional music visualizer.
-  Return a JSON object configuration that matches the mood of the song.
+  Return a raw JSON object (no markdown formatting) configuration that matches the mood of the song.
   
   Schema:
   {
@@ -110,8 +119,9 @@ export const analyzeAudioForVisualizer = async (
       }
     });
 
-    const jsonText = response.text || "{}";
-    const parsed = JSON.parse(jsonText);
+    const rawText = response.text || "{}";
+    const cleanedText = cleanJsonString(rawText);
+    const parsed = JSON.parse(cleanedText);
     
     return {
       ...defaultConfig,
