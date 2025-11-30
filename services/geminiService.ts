@@ -63,7 +63,9 @@ export const analyzeAudioForVisualizer = async (
     "particleCount": number,
     "particleSpeed": number,
     "bloomStrength": number,
-    "rotationSpeed": number
+    "rotationSpeed": number,
+    "rainbowMode": boolean,
+    "shakeStrength": number
   }`;
 
   // Default "Safety" Config
@@ -74,6 +76,8 @@ export const analyzeAudioForVisualizer = async (
     secondaryColor: "#3b82f6",
     backgroundColor: "#050505",
     colorMode: "gradient",
+    rainbowMode: false,
+    colorCycleSpeed: 0.5,
     sensitivity: 1.5,
     smoothing: 0.8,
     showBars: true,
@@ -82,6 +86,8 @@ export const analyzeAudioForVisualizer = async (
     barCount: 64,
     barWidth: 6,
     barHeightScale: 1.5,
+    barRoundness: 1.0,
+    fillOpacity: 0.5,
     mirror: false,
     showParticles: true,
     particleCount: 50,
@@ -90,6 +96,7 @@ export const analyzeAudioForVisualizer = async (
     rotationSpeed: 0.5,
     cinematicBars: false,
     vignette: 0.3,
+    shakeStrength: 0,
     backgroundImage: null,
     bgImageOpacity: 0.5,
     bgImageBlur: 0,

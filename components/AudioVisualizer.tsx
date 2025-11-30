@@ -4,7 +4,7 @@ import {
   Play, Pause, Download, Settings, Layers, 
   Image as ImageIcon, Type, Activity, ChevronLeft, 
   Video, Monitor, Volume2, VolumeX, Square, 
-  RefreshCcw, Check, MousePointer2, Move, Sparkles, Palette
+  RefreshCcw, Check, MousePointer2, Move, Sparkles, Palette, Zap
 } from 'lucide-react';
 import { VisualizerConfig } from '../types';
 
@@ -36,7 +36,7 @@ const LAYERS: LayerItem[] = [
     { id: 'text', label: 'Text Overlay', icon: Type },
 ];
 
-// --- HELPER COMPONENTS (Moved Outside) ---
+// --- HELPER COMPONENTS ---
 
 interface ControlGroupProps {
     title: string;
@@ -171,6 +171,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
 
   // Particles Ref
   const particlesRef = useRef<Particle[]>([]);
+  const timeRef = useRef<number>(0);
 
   // --- INITIALIZATION ---
   
@@ -272,12 +273,44 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       const cfg = configRef.current;
       const w = canvas.width;
       const h = canvas.height;
-      const cx = w / 2;
-      const cy = h / 2;
+      let cx = w / 2;
+      let cy = h / 2;
+
+      timeRef.current += 0.01 * (cfg.colorCycleSpeed || 0.5);
+
+      // Audio Data
+      let dataArray = new Uint8Array(0);
+      let isBeat = false;
+      let bassAvg = 0;
+      
+      if (analyserRef.current) {
+          const bufferLength = analyserRef.current.frequencyBinCount;
+          dataArray = new Uint8Array(bufferLength);
+          analyserRef.current.getByteFrequencyData(dataArray);
+
+          // Simple Beat Detection
+          let bassSum = 0;
+          for(let i=0; i<10; i++) bassSum += dataArray[i];
+          bassAvg = bassSum / 10;
+          isBeat = bassAvg > 210; // Threshold
+      }
+
+      // Bass Shake Calculation
+      let shakeX = 0;
+      let shakeY = 0;
+      if (cfg.shakeStrength > 0 && bassAvg > 100) {
+          const shakeAmt = (bassAvg / 255) * cfg.shakeStrength * 10;
+          shakeX = (Math.random() - 0.5) * shakeAmt;
+          shakeY = (Math.random() - 0.5) * shakeAmt;
+      }
 
       // 1. Clear & Background Color
       ctx.fillStyle = cfg.backgroundColor;
       ctx.fillRect(0, 0, w, h);
+
+      // Apply shake to background if it's an image
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
 
       // 2. BG Image
       if (bgImageRef.current && cfg.backgroundImage) {
@@ -299,27 +332,17 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
         ctx.drawImage(img, dx, dy, dw, dh);
         ctx.restore();
       }
-
-      // 3. Audio Data
-      let dataArray = new Uint8Array(0);
-      let isBeat = false;
       
-      if (analyserRef.current) {
-          const bufferLength = analyserRef.current.frequencyBinCount;
-          dataArray = new Uint8Array(bufferLength);
-          analyserRef.current.getByteFrequencyData(dataArray);
+      // Restore from shake
+      ctx.restore();
 
-          // Simple Beat Detection
-          let bassSum = 0;
-          for(let i=0; i<10; i++) bassSum += dataArray[i];
-          const bassAvg = bassSum / 10;
-          isBeat = bassAvg > 200; // Threshold
-      }
-
-      // 4. Particles System
+      // 4. Particles System (Behind Spectrum)
       if (cfg.showParticles) {
           if (isBeat && particlesRef.current.length < cfg.particleCount) {
-             const pColor = Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor;
+             const pColor = cfg.rainbowMode 
+                ? `hsl(${Math.random() * 360}, 100%, 60%)`
+                : (Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor);
+                
              for(let i=0; i<3; i++) {
                  particlesRef.current.push(new Particle(w, h, pColor, cfg.particleSpeed));
              }
@@ -335,8 +358,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       // 5. Spectrum Visualizer
       if (cfg.showBars) {
         ctx.save();
+        // Apply Shake to Spectrum
+        ctx.translate(shakeX, shakeY);
+        
         ctx.shadowBlur = cfg.bloomStrength;
-        ctx.shadowColor = cfg.primaryColor;
+        ctx.shadowColor = cfg.rainbowMode ? 'white' : cfg.primaryColor;
         rotationAngle += cfg.rotationSpeed * 0.005;
 
         // Base Radius for Circular mode
@@ -344,7 +370,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
         
         // Gradient logic
         let fillStyle: string | CanvasGradient = cfg.primaryColor;
-        if (cfg.colorMode === 'gradient') {
+        if (!cfg.rainbowMode && cfg.colorMode === 'gradient') {
             const grad = ctx.createLinearGradient(0, h/2 - 200, 0, h/2 + 200);
             grad.addColorStop(0, cfg.primaryColor);
             grad.addColorStop(1, cfg.secondaryColor);
@@ -370,7 +396,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                 
                 // Draw curve points
                 for (let i = 0; i <= barsToRender; i++) {
-                    // Wrap around logic for seamless circle
                     const index = i === barsToRender ? 0 : i; 
                     const val = dataArray.length ? dataArray[index * step] : 10;
                     const barH = (val * cfg.sensitivity * cfg.barHeightScale * 0.5);
@@ -385,17 +410,21 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                 }
 
                 if (cfg.spectrumStyle === 'curve') {
-                   // Filled Curve
                    ctx.closePath();
-                   // Create inner circle hole to fill out
                    ctx.arc(0, 0, radius, 0, Math.PI * 2, true); 
-                   ctx.globalAlpha = 0.5;
+                   ctx.globalAlpha = cfg.fillOpacity || 0.5;
+                   
+                   if (cfg.rainbowMode) {
+                        ctx.fillStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
+                   }
+                   
                    ctx.fill();
                    ctx.globalAlpha = 1.0;
+                   if (cfg.rainbowMode) ctx.strokeStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
                    ctx.stroke();
                 } else {
-                    // Just Line Wave
                     ctx.closePath();
+                    if (cfg.rainbowMode) ctx.strokeStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
                     ctx.stroke();
                 }
 
@@ -411,12 +440,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                     const x2 = Math.cos(angle) * (radius + barH);
                     const y2 = Math.sin(angle) * (radius + barH);
 
-                    ctx.strokeStyle = cfg.colorMode === 'solid' 
+                    if (cfg.rainbowMode) {
+                        ctx.strokeStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    } else {
+                        ctx.strokeStyle = cfg.colorMode === 'solid' 
                          ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor)
                          : fillStyle;
+                    }
                          
                     ctx.lineWidth = cfg.barWidth;
-                    ctx.lineCap = 'round';
+                    ctx.lineCap = cfg.barRoundness > 0.5 ? 'round' : 'butt';
                     ctx.beginPath();
                     ctx.moveTo(x1, y1);
                     ctx.lineTo(x2, y2);
@@ -452,10 +485,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                      ctx.lineTo(w, h);
                      ctx.lineTo(0, h);
                      ctx.closePath();
-                     ctx.globalAlpha = 0.6;
+                     ctx.globalAlpha = cfg.fillOpacity || 0.6;
+                     if (cfg.rainbowMode) ctx.fillStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
                      ctx.fill();
                      ctx.globalAlpha = 1.0;
                  } else {
+                     if (cfg.rainbowMode) ctx.strokeStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
                      ctx.stroke();
                  }
 
@@ -466,9 +501,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                     const barH = (val * cfg.sensitivity * cfg.barHeightScale * 3 * (cfg.spectrumScale || 1.0));
                     const x = i * barW;
                     
-                    ctx.fillStyle = cfg.colorMode === 'solid' 
+                    if (cfg.rainbowMode) {
+                        ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    } else {
+                        ctx.fillStyle = cfg.colorMode === 'solid' 
                          ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor)
                          : fillStyle;
+                    }
+
+                    // Rounded Top Logic
+                    const r = cfg.barRoundness > 0.5 ? Math.min(barW, barH) / 2 : 0;
 
                     if (cfg.mirror) {
                         const centerOffset = Math.abs((barsToRender/2) - i);
@@ -476,9 +518,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                         const mirrorH = (mirrorVal * cfg.sensitivity * cfg.barHeightScale * 3 * (cfg.spectrumScale || 1.0));
                         
                         const y = (h / 2) - (mirrorH / 2);
-                        ctx.fillRect(x, y, barW - 1, mirrorH);
+                        ctx.beginPath();
+                        ctx.roundRect(x, y, barW - 1, mirrorH, r);
+                        ctx.fill();
                     } else {
-                        ctx.fillRect(x, h - barH, barW - 1, barH);
+                        const y = h - barH;
+                        ctx.beginPath();
+                        ctx.roundRect(x, y, barW - 1, barH, [r, r, 0, 0]);
+                        ctx.fill();
                     }
                 }
             }
@@ -486,14 +533,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
         ctx.restore();
       }
 
-      // 6. Center Image
+      // 6. Center Image (Affected by shake)
       if (centerImageRef.current && cfg.centerImage) {
           const baseSize = 350 * cfg.centerImageSize;
           const pulse = isBeat ? 1.03 : 1.0;
           const size = baseSize * pulse;
 
           ctx.save();
-          ctx.translate(cx, cy);
+          ctx.translate(cx + shakeX, cy + shakeY);
           if (cfg.centerImageCircular) {
               ctx.beginPath();
               ctx.arc(0, 0, size/2, 0, Math.PI * 2);
@@ -506,6 +553,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       // 7. Text Overlay
       if (cfg.text.enabled) {
           ctx.save();
+          ctx.translate(shakeX, shakeY);
           ctx.fillStyle = cfg.text.color;
           ctx.globalAlpha = cfg.text.opacity;
           ctx.textAlign = 'center';
@@ -527,7 +575,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           ctx.restore();
       }
 
-      // 8. Cinematic Bars (Vignette & Letterbox)
+      // 8. Cinematic Bars (Vignette & Letterbox) - Not shaken
       if (cfg.vignette > 0) {
           ctx.save();
           const grad = ctx.createRadialGradient(cx, cy, h/2, cx, cy, h);
@@ -601,7 +649,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
 
     const recorder = new MediaRecorder(canvasStream, {
         mimeType,
-        videoBitsPerSecond: 8000000 
+        videoBitsPerSecond: 12000000 
     });
 
     mediaRecorderRef.current = recorder;
@@ -761,6 +809,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                              <ControlGroup title="Audio Reactivity">
                                 <Slider label="Sensitivity" min={0.5} max={3} step={0.1} value={config.sensitivity} onChange={(v) => setConfig({...config, sensitivity: v})} />
                                 <Slider label="Smoothing" min={0.1} max={0.95} step={0.05} value={config.smoothing} onChange={(v) => setConfig({...config, smoothing: v})} />
+                                <div className="mt-4">
+                                     <Slider label="Bass Shake" min={0} max={5} step={0.5} value={config.shakeStrength || 0} onChange={(v) => setConfig({...config, shakeStrength: v})} />
+                                </div>
                              </ControlGroup>
                         </div>
                     )}
@@ -793,22 +844,47 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                                 </div>
                              </ControlGroup>
 
-                             <ControlGroup title="Dimensions">
+                             <ControlGroup title="Design">
                                 <Slider label="Scale / Size" min={0.5} max={2.0} step={0.1} value={config.spectrumScale || 1.0} onChange={(v) => setConfig({...config, spectrumScale: v})} />
                                 <Slider label="Bar Count" min={32} max={256} step={16} value={config.barCount} onChange={(v) => setConfig({...config, barCount: v})} />
                                 <Slider label="Bar Width" min={1} max={20} step={1} value={config.barWidth} onChange={(v) => setConfig({...config, barWidth: v})} />
                                 <Slider label="Amplitude" min={0.5} max={3} step={0.1} value={config.barHeightScale} onChange={(v) => setConfig({...config, barHeightScale: v})} />
+                                
+                                {config.spectrumStyle === 'bars' && (
+                                    <div className="flex items-center justify-between text-xs mt-4 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                        <span className="text-zinc-300">Round Caps</span>
+                                        <input type="checkbox" checked={(config.barRoundness || 0) > 0.5} onChange={e => setConfig({...config, barRoundness: e.target.checked ? 1 : 0})} className="accent-indigo-500 w-4 h-4" />
+                                    </div>
+                                )}
+                                {config.spectrumStyle === 'curve' && (
+                                     <div className="mt-4">
+                                        <Slider label="Fill Opacity" min={0} max={1} step={0.1} value={config.fillOpacity ?? 0.5} onChange={(v) => setConfig({...config, fillOpacity: v})} />
+                                     </div>
+                                )}
                              </ControlGroup>
                              
                              <ControlGroup title="Appearance">
-                                <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
-                                    <span className="text-zinc-300">Gradient Color</span>
-                                    <input type="checkbox" checked={config.colorMode === 'gradient'} onChange={e => setConfig({...config, colorMode: e.target.checked ? 'gradient' : 'solid'})} className="accent-indigo-500 w-4 h-4" />
+                                <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                    <span className="flex items-center gap-2 text-zinc-300"><Zap size={12} className="text-yellow-400" /> Rainbow Mode</span>
+                                    <input type="checkbox" checked={config.rainbowMode} onChange={e => setConfig({...config, rainbowMode: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
                                 </div>
-                                <div className="space-y-3">
-                                    <ColorPicker label="Primary Color" value={config.primaryColor} onChange={(v) => setConfig({...config, primaryColor: v})} />
-                                    <ColorPicker label="Secondary Color" value={config.secondaryColor} onChange={(v) => setConfig({...config, secondaryColor: v})} />
-                                </div>
+                                
+                                {config.rainbowMode ? (
+                                    <div className="mt-2">
+                                        <Slider label="Cycle Speed" min={0} max={5} step={0.5} value={config.colorCycleSpeed ?? 0.5} onChange={(v) => setConfig({...config, colorCycleSpeed: v})} />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                            <span className="text-zinc-300">Gradient Color</span>
+                                            <input type="checkbox" checked={config.colorMode === 'gradient'} onChange={e => setConfig({...config, colorMode: e.target.checked ? 'gradient' : 'solid'})} className="accent-indigo-500 w-4 h-4" />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <ColorPicker label="Primary Color" value={config.primaryColor} onChange={(v) => setConfig({...config, primaryColor: v})} />
+                                            <ColorPicker label="Secondary Color" value={config.secondaryColor} onChange={(v) => setConfig({...config, secondaryColor: v})} />
+                                        </div>
+                                    </>
+                                )}
                                 <div className="mt-4">
                                      <Slider label="Bloom Strength" min={0} max={50} step={5} value={config.bloomStrength} onChange={(v) => setConfig({...config, bloomStrength: v})} />
                                 </div>
