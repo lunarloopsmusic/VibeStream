@@ -95,7 +95,7 @@ export const analyzeAudioForVisualizer = async (
     text: {
       enabled: true,
       topText: cleanName,
-      bottomText: "VIZZY STUDIO",
+      bottomText: "VIBESTREAM",
       fontFamily: "Inter",
       fontSize: 40,
       color: "#ffffff",

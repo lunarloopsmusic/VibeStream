@@ -543,7 +543,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                  <div className="h-4 w-px bg-zinc-800" />
                  <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
-                    <span className="text-sm font-semibold text-zinc-200">Vizzy Studio</span>
+                    <span className="text-sm font-semibold text-zinc-200">VibeStream</span>
                  </div>
              </div>
 

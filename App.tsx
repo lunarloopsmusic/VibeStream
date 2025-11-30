@@ -106,7 +106,7 @@ export default function App() {
               <div className="w-8 h-8 bg-white/10 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center">
                   <Aperture className="text-white" size={18} />
               </div>
-              <span className="font-bold text-xl tracking-tight text-white/90">Vizzy Studio</span>
+              <span className="font-bold text-xl tracking-tight text-white/90">VibeStream</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-500 pointer-events-auto">
              <span className="flex items-center gap-1.5"><Cpu size={14}/> Gemini 2.5 Engine</span>
