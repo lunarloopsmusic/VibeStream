@@ -52,7 +52,7 @@ export const generateLyrics = async (base64Audio: string, mimeType: string): Pro
     });
     return response.text || "";
   } catch (e) {
-    console.error("Lyrics Generation Failed", e);
+    console.error("Lyrics Generation Failed. Mime:", mimeType, "Error:", e);
     throw new Error("API Request Failed");
   }
 };
@@ -142,6 +142,7 @@ export const analyzeAudioForVisualizer = async (
     lyrics: {
       enabled: false,
       content: "",
+      syncData: [], // Initialize empty sync data
       fontFamily: "Montserrat",
       fontSize: 32,
       color: "#ffffff",

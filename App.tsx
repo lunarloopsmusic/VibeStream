@@ -82,6 +82,7 @@ export default function App() {
       return (
         <AudioVisualizer 
             audioUrl={audioFile.url}
+            mimeType={audioFile.mimeType}
             config={visualizerConfig}
             onBack={handleReset}
         />

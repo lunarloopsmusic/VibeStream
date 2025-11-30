@@ -25,9 +25,15 @@ export interface TextConfig {
   shadow: boolean;
 }
 
+export interface LyricLine {
+  time: number;
+  text: string;
+}
+
 export interface LyricsConfig {
   enabled: boolean;
   content: string; // Raw string with newlines
+  syncData: LyricLine[]; // Array of timestamps and text
   fontFamily: string;
   fontSize: number;
   color: string;

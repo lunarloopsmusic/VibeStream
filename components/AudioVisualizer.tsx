@@ -5,13 +5,14 @@ import {
   Image as ImageIcon, Type, Activity, ChevronLeft, 
   Video, Monitor, Volume2, VolumeX, Square, 
   RefreshCcw, Check, X, Film, Clock, FileVideo,
-  Sparkles, Zap, FileText, Wand2
+  Sparkles, Zap, FileText, Wand2, AlertTriangle, Mic
 } from 'lucide-react';
-import { VisualizerConfig } from '../types';
+import { VisualizerConfig, LyricLine } from '../types';
 import { generateLyrics } from '../services/geminiService';
 
 interface AudioVisualizerProps {
   audioUrl: string;
+  mimeType: string;
   config: VisualizerConfig;
   onBack: () => void;
 }
@@ -154,7 +155,7 @@ class Particle {
   }
 }
 
-export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, config: initialConfig, onBack }) => {
+export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mimeType, config: initialConfig, onBack }) => {
   // State
   const [config, setConfig] = useState<VisualizerConfig>(initialConfig);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -168,6 +169,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [fileSizeWarning, setFileSizeWarning] = useState<boolean>(false);
+  
+  // Sync States
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncIndex, setSyncIndex] = useState(0);
 
   // Export Settings
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
@@ -196,6 +202,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   useEffect(() => { configRef.current = config; }, [config]);
   const exportSettingsRef = useRef(exportSettings);
   useEffect(() => { exportSettingsRef.current = exportSettings; }, [exportSettings]);
+  
+  // Keep Sync state current
+  const isSyncingRef = useRef(isSyncing);
+  useEffect(() => { isSyncingRef.current = isSyncing; }, [isSyncing]);
+  const syncIndexRef = useRef(syncIndex);
+  useEffect(() => { syncIndexRef.current = syncIndex; }, [syncIndex]);
 
   // Particles Ref
   const particlesRef = useRef<Particle[]>([]);
@@ -206,47 +218,121 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   const handleGenerateLyrics = async () => {
     if (isGeneratingLyrics) return;
     setIsGeneratingLyrics(true);
+    setFileSizeWarning(false);
     
     try {
         const response = await fetch(audioUrl);
         let blob = await response.blob();
         
-        // Safety slice for API payload limits (Inline data max ~20MB base64 encoded)
-        // 12MB binary becomes ~16MB Base64. We use 10MB to be safe.
-        const MAX_SIZE = 10 * 1024 * 1024; 
+        // Safety slice for API payload limits.
+        const MAX_SIZE = 8 * 1024 * 1024; 
+        
         if (blob.size > MAX_SIZE) {
-            console.warn("Audio too large for full lyric generation. Slicing first 10MB.");
-            blob = blob.slice(0, MAX_SIZE, blob.type);
+            console.warn("Audio too large. Slicing first 8MB for analysis.");
+            if (mimeType.includes('wav')) {
+                setFileSizeWarning(true);
+            }
+            blob = blob.slice(0, MAX_SIZE, mimeType || blob.type);
         }
 
         const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
                  const res = reader.result as string;
-                 if (res) resolve(res.split(',')[1]);
+                 if (res) {
+                    const parts = res.split(',');
+                    if (parts.length > 1) resolve(parts[1]);
+                    else reject("Invalid base64 encoding");
+                 }
                  else reject("File reading failed");
             };
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
 
-        const lyrics = await generateLyrics(base64, blob.type);
+        const finalMimeType = blob.type || mimeType || 'audio/mp3';
         
-        setConfig(prev => ({
-            ...prev,
-            lyrics: {
-                ...prev.lyrics,
-                enabled: true,
-                content: lyrics
-            }
-        }));
+        const lyrics = await generateLyrics(base64, finalMimeType);
+        
+        if (lyrics && lyrics.length > 0) {
+            setConfig(prev => ({
+                ...prev,
+                lyrics: {
+                    ...prev.lyrics,
+                    enabled: true,
+                    content: lyrics,
+                    syncData: [] // Clear old sync data if regenerating
+                }
+            }));
+        } else {
+             alert("AI generated empty lyrics. Is this an instrumental track?");
+        }
     } catch (e) {
         console.error("Lyrics Error:", e);
-        alert("Could not generate lyrics. The file might be too large or the API is busy.");
+        alert("Could not generate lyrics. The file might be too large or valid audio data wasn't detected.");
     } finally {
         setIsGeneratingLyrics(false);
     }
   };
+
+  const startSyncSession = () => {
+      if (!audioRef.current) return;
+      audioRef.current.currentTime = 0;
+      setSyncIndex(0);
+      setIsSyncing(true);
+      setConfig(prev => ({
+          ...prev,
+          lyrics: {
+              ...prev.lyrics,
+              syncData: [], // Clear previous sync
+              enabled: true
+          }
+      }));
+      if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
+      audioRef.current.play();
+      setIsPlaying(true);
+  };
+
+  const stopSyncSession = () => {
+      setIsSyncing(false);
+      if(audioRef.current) audioRef.current.pause();
+      setIsPlaying(false);
+  };
+
+  const recordSyncPoint = () => {
+      if (!isSyncing || !audioRef.current) return;
+      
+      const time = audioRef.current.currentTime;
+      const lines = config.lyrics.content.split('\n').filter(l => l.trim() !== '');
+      const currentText = lines[syncIndex];
+
+      if (currentText) {
+          const newPoint: LyricLine = { time, text: currentText };
+          setConfig(prev => ({
+              ...prev,
+              lyrics: {
+                  ...prev.lyrics,
+                  syncData: [...(prev.lyrics.syncData || []), newPoint]
+              }
+          }));
+          setSyncIndex(prev => prev + 1);
+      } else {
+          // Finished all lines
+          stopSyncSession();
+      }
+  };
+
+  // Keyboard listener for Sync
+  useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if (isSyncingRef.current && (e.code === 'Space' || e.code === 'Enter')) {
+              e.preventDefault();
+              recordSyncPoint();
+          }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // --- INITIALIZATION ---
   
@@ -606,41 +692,95 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
       }
 
       // 7. LYRICS
-      if (cfg.lyrics?.enabled && cfg.lyrics.content.trim().length > 0) {
+      const rawLines = cfg.lyrics.content.split('\n').filter(l => l.trim() !== '');
+      const totalLines = rawLines.length;
+
+      // Handle Sync Overlay (When Syncing Mode is Active)
+      if (isSyncingRef.current) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(0, 0, w, h);
+          
+          ctx.textAlign = 'center';
+          ctx.fillStyle = 'white';
+          ctx.font = `bold ${60 * scaleFactor}px "Inter"`;
+          ctx.fillText("SYNC MODE ACTIVE", cx, cy - (100 * scaleFactor));
+          
+          ctx.font = `normal ${30 * scaleFactor}px "Inter"`;
+          ctx.fillText("Tap SPACEBAR to sync this line:", cx, cy - (40 * scaleFactor));
+          
+          ctx.fillStyle = '#a855f7'; // Highlight color
+          ctx.font = `bold ${50 * scaleFactor}px "Inter"`;
+          const pendingLine = rawLines[syncIndexRef.current] || "End of Lyrics";
+          ctx.fillText(pendingLine, cx, cy + (50 * scaleFactor));
+
+          // Progress indicator
+          ctx.fillStyle = '#666';
+          ctx.font = `normal ${20 * scaleFactor}px "Inter"`;
+          ctx.fillText(`Line ${syncIndexRef.current + 1} of ${totalLines}`, cx, cy + (120 * scaleFactor));
+          
+          ctx.restore();
+      }
+      else if (cfg.lyrics?.enabled && totalLines > 0) {
           ctx.save();
           ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor));
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           
-          const lines = cfg.lyrics.content.split('\n').filter(l => l.trim() !== '');
-          const totalLines = lines.length;
+          let currentLineIndex = 0;
+          let progress = 0;
+
+          // DETERMINING CURRENT LINE: Sync Data vs Distribution Fallback
+          if (cfg.lyrics.syncData && cfg.lyrics.syncData.length > 0) {
+              // 1. Time-Based Sync Lookup
+              // Find the last line that has a time <= currentPlayTime
+              let foundIndex = -1;
+              for (let i = 0; i < cfg.lyrics.syncData.length; i++) {
+                  if (currentPlayTime >= cfg.lyrics.syncData[i].time) {
+                      foundIndex = i;
+                  } else {
+                      break; // Optimization: syncData is chronologically ordered
+                  }
+              }
+              currentLineIndex = foundIndex;
+              
+              // Calculate progress within this line for Karaoke effect
+              if (currentLineIndex >= 0) {
+                  const startTime = cfg.lyrics.syncData[currentLineIndex].time;
+                  // If there is a next line, end time is that. If not, maybe +3 seconds?
+                  const endTime = cfg.lyrics.syncData[currentLineIndex + 1]?.time || (startTime + 3);
+                  const duration = endTime - startTime;
+                  progress = Math.min(1, Math.max(0, (currentPlayTime - startTime) / duration));
+              }
+
+          } else {
+              // 2. Simple Distribution Fallback (Old Method)
+              const effectiveDuration = currentDuration * 0.9; 
+              const effectiveTime = Math.max(0, currentPlayTime - (currentDuration * 0.05));
+              const globalProgress = Math.min(1, Math.max(0, effectiveTime / effectiveDuration));
+              currentLineIndex = Math.floor(globalProgress * totalLines);
+              // Rough internal progress
+              progress = (globalProgress * totalLines) % 1; 
+          }
           
-          // Simple evenly distributed Sync logic:
-          // In a real app, we would have precise timestamps. 
-          // Here we distribute lines across the duration.
-          // Padding start/end by 5% so lyrics don't start immediately or end abruptly
-          const effectiveDuration = currentDuration * 0.9; 
-          const effectiveTime = Math.max(0, currentPlayTime - (currentDuration * 0.05));
-          const progress = Math.min(1, Math.max(0, effectiveTime / effectiveDuration));
-          
-          const currentLineIndex = Math.floor(progress * totalLines);
           const scaledFontSize = cfg.lyrics.fontSize * scaleFactor;
           ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
 
+          // RENDER STYLES
           if (cfg.lyrics.animationStyle === 'scroll') {
               // Scroll Mode
-              // Show window of lines moving up
               const windowSize = 5;
               const lineHeight = scaledFontSize * 1.5;
-              const scrollOffset = (progress * totalLines * lineHeight) - (windowSize * lineHeight / 2);
+              
+              // Calculate scroll based on index, not just raw time
+              const scrollOffset = (currentLineIndex * lineHeight) - (windowSize * lineHeight / 2) + (progress * lineHeight);
 
               ctx.beginPath();
               ctx.rect(-w/2, -h/2 + 200 * scaleFactor, w, h/2); // clip bottom area
               ctx.clip();
               
-              lines.forEach((line, i) => {
-                  const y = (i * lineHeight) - scrollOffset + (200 * scaleFactor); // base offset
-                  // Fade out edges
+              rawLines.forEach((line, i) => {
+                  const y = (i * lineHeight) - scrollOffset + (200 * scaleFactor); 
                   const distFromCenter = Math.abs(y - (200 * scaleFactor));
                   const opacity = Math.max(0, 1 - (distFromCenter / (lineHeight * 3)));
                   
@@ -653,9 +793,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
 
           } else {
               // Highlight / Karaoke / Static Mode
-              const activeLine = lines[currentLineIndex] || "";
-              const prevLine = lines[currentLineIndex - 1] || "";
-              const nextLine = lines[currentLineIndex + 1] || "";
+              const activeLine = rawLines[currentLineIndex] || "";
+              const prevLine = rawLines[currentLineIndex - 1] || "";
+              const nextLine = rawLines[currentLineIndex + 1] || "";
               
               const lineHeight = scaledFontSize * 1.4;
 
@@ -671,10 +811,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
               ctx.globalAlpha = cfg.lyrics.opacity;
               ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
               
-              if (cfg.lyrics.animationStyle === 'karaoke') {
-                  // Simulate Karaoke fill
-                  const lineProgress = (progress * totalLines) - currentLineIndex;
-                  const charCount = Math.floor(activeLine.length * lineProgress);
+              if (cfg.lyrics.animationStyle === 'karaoke' && currentLineIndex >= 0) {
+                  const charCount = Math.floor(activeLine.length * progress);
                   const filledPart = activeLine.substring(0, charCount);
                   const emptyPart = activeLine.substring(charCount);
                   
@@ -683,7 +821,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                   const startX = -totalWidth / 2;
                   
                   // Draw filled
-                  ctx.fillStyle = cfg.primaryColor; // Use primary theme color for highlight
+                  ctx.fillStyle = cfg.primaryColor; 
                   ctx.shadowColor = cfg.primaryColor;
                   ctx.shadowBlur = 20;
                   ctx.fillText(filledPart, startX + (filledWidth/2), 0);
@@ -699,7 +837,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                   if (cfg.lyrics.animationStyle === 'highlight') {
                       ctx.shadowColor = 'black';
                       ctx.shadowBlur = 10 * scaleFactor;
-                      const pulse = isBeat ? 1.05 : 1.0;
+                      const pulse = (isBeat && currentLineIndex >= 0) ? 1.05 : 1.0;
                       ctx.scale(pulse, pulse);
                   }
                   ctx.fillStyle = cfg.lyrics.color;
@@ -707,8 +845,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
               }
 
               // Next Line (Dimmed)
-              ctx.resetTransform(); // reset scale from pulse
-              ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor)); // re-translate
+              ctx.resetTransform(); 
+              ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor)); 
               
               ctx.fillStyle = cfg.lyrics.color;
               ctx.globalAlpha = cfg.lyrics.opacity * 0.3;
@@ -1261,13 +1399,22 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                     {activeLayer === 'lyrics' && (
                          <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                             <ControlGroup title="Content">
+                                {fileSizeWarning && (
+                                    <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/20 rounded-lg flex items-start gap-2">
+                                        <AlertTriangle size={16} className="text-yellow-500 shrink-0 mt-0.5" />
+                                        <p className="text-[10px] text-yellow-200 leading-tight">
+                                            Large WAV file detected. AI will only analyze the first 8MB (~45s). For full lyrics, please convert to MP3.
+                                        </p>
+                                    </div>
+                                )}
+                                
                                 <button 
                                     onClick={handleGenerateLyrics}
-                                    disabled={isGeneratingLyrics}
-                                    className="w-full mb-4 flex items-center justify-center gap-2 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                    disabled={isGeneratingLyrics || isSyncing}
+                                    className="w-full mb-2 flex items-center justify-center gap-2 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                                 >
                                     {isGeneratingLyrics ? <div className="animate-spin w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> : <Wand2 size={14} />}
-                                    {isGeneratingLyrics ? "ANALYZING..." : "GENERATE LYRICS"}
+                                    {isGeneratingLyrics ? "ANALYZING..." : "AUTO-GENERATE"}
                                 </button>
                                 
                                 <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
@@ -1279,11 +1426,42 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                                     value={config.lyrics?.content ?? ""}
                                     onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, content: e.target.value}}))}
                                     placeholder="Paste or generate lyrics here..."
-                                    className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-zinc-300 font-mono focus:border-indigo-500 outline-none resize-none"
+                                    disabled={isSyncing}
+                                    className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded p-2 text-xs text-zinc-300 font-mono focus:border-indigo-500 outline-none resize-none disabled:opacity-50"
                                 />
                                 <div className="text-[10px] text-zinc-500 mt-1 italic">
                                     Format: One line per phrase.
                                 </div>
+                            </ControlGroup>
+                            
+                            <ControlGroup title="Timing & Sync">
+                                {isSyncing ? (
+                                    <div className="bg-red-900/20 border border-red-500/50 p-4 rounded-lg text-center space-y-2 animate-pulse">
+                                        <div className="flex justify-center text-red-500"><Mic size={24} /></div>
+                                        <h4 className="text-sm font-bold text-red-200">RECORDING TIMING</h4>
+                                        <p className="text-xs text-red-300">Tap SPACEBAR for next line.</p>
+                                        <button 
+                                            onClick={stopSyncSession}
+                                            className="w-full py-1.5 bg-red-600 hover:bg-red-500 text-white rounded font-bold text-xs"
+                                        >
+                                            STOP RECORDING
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={startSyncSession}
+                                        disabled={!config.lyrics?.content}
+                                        className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex flex-col items-center gap-1"
+                                    >
+                                        <span className="flex items-center gap-2"><Clock size={14} /> MANUAL SYNC MODE</span>
+                                        <span className="text-[10px] font-normal opacity-70">Tap Spacebar to set timing</span>
+                                    </button>
+                                )}
+                                {config.lyrics?.syncData?.length > 0 && !isSyncing && (
+                                    <div className="mt-2 text-center text-[10px] text-green-400">
+                                        ✓ Synced {config.lyrics.syncData.length} lines
+                                    </div>
+                                )}
                             </ControlGroup>
 
                             <ControlGroup title="Animation Style">
