@@ -1,0 +1,5 @@
+{
+  "name": "VibeStream",
+  "description": "Transform your music into monetizable video content using Gemini 2.5 and Veo. Upload audio, generate mood-matched visuals, and download assets for your channel.",
+  "requestFramePermissions": []
+}
