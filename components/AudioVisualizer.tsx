@@ -531,6 +531,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           ctx.globalAlpha = cfg.text.opacity;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+          
+          // Apply Spacing (Modern Canvas API)
+          if ('letterSpacing' in ctx) {
+              (ctx as any).letterSpacing = `${cfg.text.letterSpacing * scaleFactor}px`;
+          }
+
           if (cfg.text.shadow) {
               ctx.shadowColor = 'black';
               ctx.shadowBlur = 15 * scaleFactor;
@@ -540,6 +546,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
           
           ctx.font = `bold ${scaledFontSize}px "${cfg.text.fontFamily}"`;
           ctx.fillText(cfg.text.topText.toUpperCase(), cx, textY);
+          
           ctx.font = `normal ${scaledFontSize * 0.5}px "${cfg.text.fontFamily}"`;
           ctx.fillText(cfg.text.bottomText, cx, textY + (scaledFontSize * 1.2));
           ctx.restore();
@@ -1078,10 +1085,15 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
                                         <option value="Inter">Inter (Sans)</option>
                                         <option value="Playfair Display">Playfair (Serif)</option>
                                         <option value="JetBrains Mono">JetBrains (Mono)</option>
+                                        <option value="Oswald">Oswald (Condensed)</option>
+                                        <option value="Montserrat">Montserrat (Modern)</option>
+                                        <option value="Dancing Script">Dancing Script (Cursive)</option>
+                                        <option value="Orbitron">Orbitron (Sci-Fi)</option>
+                                        <option value="Cinzel">Cinzel (Cinematic)</option>
                                     </select>
                                     <ColorPicker label="Text Color" value={config.text.color} onChange={(v) => setConfig({...config, text: {...config.text, color: v}})} />
                                     <Slider label="Font Size" min={20} max={150} step={5} value={config.text.fontSize} onChange={(v) => setConfig({...config, text: {...config.text, fontSize: v}})} />
-                                    <Slider label="Spacing" min={0} max={20} step={1} value={config.text.letterSpacing} onChange={(v) => setConfig({...config, text: {...config.text, letterSpacing: v}})} />
+                                    <Slider label="Spacing" min={0} max={50} step={1} value={config.text.letterSpacing} onChange={(v) => setConfig({...config, text: {...config.text, letterSpacing: v}})} />
                                 </div>
                              </ControlGroup>
                         </div>
