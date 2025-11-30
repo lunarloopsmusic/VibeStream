@@ -252,16 +252,17 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
 
         const finalMimeType = blob.type || mimeType || 'audio/mp3';
         
-        const lyrics = await generateLyrics(base64, finalMimeType);
+        // This now returns { content, syncData }
+        const result = await generateLyrics(base64, finalMimeType);
         
-        if (lyrics && lyrics.length > 0) {
+        if (result && result.content.length > 0) {
             setConfig(prev => ({
                 ...prev,
                 lyrics: {
                     ...prev.lyrics,
                     enabled: true,
-                    content: lyrics,
-                    syncData: [] // Clear old sync data if regenerating
+                    content: result.content,
+                    syncData: result.syncData // Auto-Sync Data
                 }
             }));
         } else {
@@ -794,6 +795,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           } else {
               // Highlight / Karaoke / Static Mode
               const activeLine = rawLines[currentLineIndex] || "";
+              // Use sync data for content to avoid mismatch if rawLines differs
+              // (but here rawLines IS content, so it matches)
+              
               const prevLine = rawLines[currentLineIndex - 1] || "";
               const nextLine = rawLines[currentLineIndex + 1] || "";
               
@@ -1414,7 +1418,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     className="w-full mb-2 flex items-center justify-center gap-2 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/50 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
                                 >
                                     {isGeneratingLyrics ? <div className="animate-spin w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> : <Wand2 size={14} />}
-                                    {isGeneratingLyrics ? "ANALYZING..." : "AUTO-GENERATE"}
+                                    {isGeneratingLyrics ? "ANALYZING..." : "AUTO-SYNC LYRICS"}
                                 </button>
                                 
                                 <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">

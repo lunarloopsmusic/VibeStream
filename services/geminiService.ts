@@ -1,6 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { VisualizerConfig } from "../types";
+import { VisualizerConfig, LyricLine } from "../types";
 
 const getClient = async (): Promise<GoogleGenAI> => {
   let apiKey = '';
@@ -32,13 +32,20 @@ const cleanJsonString = (str: string): string => {
   }
 };
 
-export const generateLyrics = async (base64Audio: string, mimeType: string): Promise<string> => {
+export const generateLyrics = async (base64Audio: string, mimeType: string): Promise<{ content: string, syncData: LyricLine[] }> => {
   const ai = await getClient();
-  const prompt = `Listen to this audio. Accurately transcribe the lyrics. 
-  Format the output as simple text, broken into natural lines (verses/chorus). 
-  Do not include [Verse], [Chorus] labels. Just the lyrics. 
-  Do not include conversational filler like "Here are the lyrics".
-  If it is instrumental, return "Instrumental - No Lyrics".`;
+  
+  // Updated prompt to request structured JSON with timestamps
+  const prompt = `Listen to this audio. Transcribe the lyrics and provide precise start timestamps for each line.
+  
+  Return strictly a JSON array of objects. Do not include markdown formatting or backticks.
+  Schema:
+  [
+    { "time": number (seconds, e.g. 12.5), "text": "string (lyric line)" }
+  ]
+
+  If it is instrumental, return an empty array [].
+  Ignore intro/outro instrumental parts, just caption the vocals.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -48,9 +55,29 @@ export const generateLyrics = async (base64Audio: string, mimeType: string): Pro
           { inlineData: { mimeType: mimeType, data: base64Audio } },
           { text: prompt },
         ],
+      },
+      config: {
+        responseMimeType: "application/json",
       }
     });
-    return response.text || "";
+
+    const rawText = response.text || "[]";
+    const cleanedText = cleanJsonString(rawText);
+    
+    let syncData: LyricLine[] = [];
+    try {
+        syncData = JSON.parse(cleanedText);
+    } catch (e) {
+        console.warn("Failed to parse synced lyrics JSON, falling back to text", e);
+        // Fallback: If it returns plain text for some reason
+        return { content: rawText, syncData: [] };
+    }
+
+    // Reconstruct the full text content from the array
+    const content = syncData.map(line => line.text).join('\n');
+
+    return { content, syncData };
+
   } catch (e) {
     console.error("Lyrics Generation Failed. Mime:", mimeType, "Error:", e);
     throw new Error("API Request Failed");
