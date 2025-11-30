@@ -37,6 +37,7 @@ export const generateLyrics = async (base64Audio: string, mimeType: string): Pro
   const prompt = `Listen to this audio. Accurately transcribe the lyrics. 
   Format the output as simple text, broken into natural lines (verses/chorus). 
   Do not include [Verse], [Chorus] labels. Just the lyrics. 
+  Do not include conversational filler like "Here are the lyrics".
   If it is instrumental, return "Instrumental - No Lyrics".`;
 
   try {
@@ -52,7 +53,7 @@ export const generateLyrics = async (base64Audio: string, mimeType: string): Pro
     return response.text || "";
   } catch (e) {
     console.error("Lyrics Generation Failed", e);
-    return "Could not generate lyrics. Please paste them manually.";
+    throw new Error("API Request Failed");
   }
 };
 

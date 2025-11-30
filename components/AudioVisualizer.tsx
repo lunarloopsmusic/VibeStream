@@ -204,30 +204,46 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, conf
   // --- ACTIONS ---
 
   const handleGenerateLyrics = async () => {
+    if (isGeneratingLyrics) return;
     setIsGeneratingLyrics(true);
+    
     try {
-        // Fetch audio blob from url
         const response = await fetch(audioUrl);
-        const blob = await response.blob();
+        let blob = await response.blob();
         
-        // Convert to base64
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-             const base64 = (reader.result as string).split(',')[1];
-             const lyrics = await generateLyrics(base64, blob.type);
-             setConfig(prev => ({
-                 ...prev,
-                 lyrics: {
-                     ...prev.lyrics,
-                     enabled: true,
-                     content: lyrics
-                 }
-             }));
-             setIsGeneratingLyrics(false);
+        // Safety slice for API payload limits (Inline data max ~20MB base64 encoded)
+        // 12MB binary becomes ~16MB Base64. We use 10MB to be safe.
+        const MAX_SIZE = 10 * 1024 * 1024; 
+        if (blob.size > MAX_SIZE) {
+            console.warn("Audio too large for full lyric generation. Slicing first 10MB.");
+            blob = blob.slice(0, MAX_SIZE, blob.type);
         }
+
+        const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                 const res = reader.result as string;
+                 if (res) resolve(res.split(',')[1]);
+                 else reject("File reading failed");
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+
+        const lyrics = await generateLyrics(base64, blob.type);
+        
+        setConfig(prev => ({
+            ...prev,
+            lyrics: {
+                ...prev.lyrics,
+                enabled: true,
+                content: lyrics
+            }
+        }));
     } catch (e) {
-        console.error(e);
+        console.error("Lyrics Error:", e);
+        alert("Could not generate lyrics. The file might be too large or the API is busy.");
+    } finally {
         setIsGeneratingLyrics(false);
     }
   };
