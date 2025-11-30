@@ -144,6 +144,7 @@ export const analyzeAudioForVisualizer = async (
     showParticles: true,
     particleCount: 50,
     particleSpeed: 2,
+    particleStyle: 'circle',
     bloomStrength: 20,
     rotationSpeed: 0.5,
     cinematicBars: false,

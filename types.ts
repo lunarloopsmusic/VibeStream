@@ -92,4 +92,5 @@ export interface VisualizerConfig {
   showParticles: boolean;
   particleCount: number;
   particleSpeed: number;
+  particleStyle: 'circle' | 'square' | 'triangle' | 'star' | 'heart';
 }

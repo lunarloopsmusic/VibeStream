@@ -144,12 +144,59 @@ class Particle {
     this.size *= 0.98; // Shrink over time
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, style: 'circle' | 'square' | 'triangle' | 'star' | 'heart') {
     ctx.save();
     ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
     ctx.fillStyle = this.color;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    
+    if (style === 'square') {
+        ctx.rect(this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+    } else if (style === 'triangle') {
+        ctx.moveTo(this.x, this.y - this.size);
+        ctx.lineTo(this.x + this.size, this.y + this.size);
+        ctx.lineTo(this.x - this.size, this.y + this.size);
+        ctx.closePath();
+    } else if (style === 'star') {
+        // Simple star
+        const spikes = 5;
+        const outerRadius = this.size * 1.5;
+        const innerRadius = this.size * 0.7;
+        let rot = Math.PI / 2 * 3;
+        let x = this.x;
+        let y = this.y;
+        const step = Math.PI / spikes;
+
+        ctx.moveTo(this.x, this.y - outerRadius);
+        for (let i = 0; i < spikes; i++) {
+            x = this.x + Math.cos(rot) * outerRadius;
+            y = this.y + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = this.x + Math.cos(rot) * innerRadius;
+            y = this.y + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+        }
+        ctx.lineTo(this.x, this.y - outerRadius);
+        ctx.closePath();
+    } else if (style === 'heart') {
+         // Heart shape approximate
+         const x = this.x;
+         const y = this.y - (this.size * 0.5); // Shift up slightly
+         const size = this.size * 1.5;
+         
+         ctx.moveTo(x, y + size * 0.3);
+         ctx.bezierCurveTo(x, y, x - size, y - size * 0.5, x - size, y - size * 0.2);
+         ctx.bezierCurveTo(x - size, y + size * 0.4, x - size * 0.2, y + size * 0.8, x, y + size);
+         ctx.bezierCurveTo(x + size * 0.2, y + size * 0.8, x + size, y + size * 0.4, x + size, y - size * 0.2);
+         ctx.bezierCurveTo(x + size, y - size * 0.5, x, y, x, y + size * 0.3);
+    } else {
+        // Circle default
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    }
+    
     ctx.fill();
     ctx.restore();
   }
@@ -495,7 +542,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           for (let i = particlesRef.current.length - 1; i >= 0; i--) {
             const p = particlesRef.current[i];
             p.update();
-            p.draw(ctx);
+            p.draw(ctx, cfg.particleStyle || 'circle');
             if (p.life <= 0) particlesRef.current.splice(i, 1);
           }
       }
@@ -1280,6 +1327,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
                                     <span className="text-zinc-300">Enable Emitter</span>
                                     <input type="checkbox" checked={config.showParticles} onChange={e => setConfig({...config, showParticles: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="text-xs text-zinc-300 font-medium mb-2 block">Shape Appearance</label>
+                                    <select 
+                                        value={config.particleStyle || 'circle'} 
+                                        onChange={e => setConfig({...config, particleStyle: e.target.value as any})}
+                                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
+                                    >
+                                        <option value="circle">Circle</option>
+                                        <option value="square">Square</option>
+                                        <option value="triangle">Triangle</option>
+                                        <option value="star">Star</option>
+                                        <option value="heart">Heart</option>
+                                    </select>
                                 </div>
                                 <Slider label="Max Particles" min={10} max={300} step={10} value={config.particleCount} onChange={(v) => setConfig({...config, particleCount: v})} />
                                 <Slider label="Velocity" min={0.5} max={5} step={0.5} value={config.particleSpeed} onChange={(v) => setConfig({...config, particleSpeed: v})} />
