@@ -3,7 +3,7 @@ import { AppStep, AudioFile, GenerationConfig } from './types';
 import { AudioUploader } from './components/AudioUploader';
 import { VideoResult } from './components/VideoResult';
 import { analyzeAudioAndGeneratePrompt, generateVideo } from './services/geminiService';
-import { Wand2, Loader2, Music, Youtube, Film, CheckCircle2 } from 'lucide-react';
+import { Wand2, Loader2, Music, Youtube, Film, CheckCircle2, DollarSign } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
@@ -34,7 +34,6 @@ export default function App() {
   };
 
   // Utilities
-  // Updated to accept Blob so we can handle sliced files
   const fileToBase64 = (file: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -70,21 +69,15 @@ export default function App() {
       setError(null);
       setStep(AppStep.ANALYZING);
 
-      // Prepare audio for analysis. 
-      // Gemini has a strict limit (~20MB) for inline media data.
-      // If the file is larger than 18MB, we slice the first 18MB for analysis.
-      // This allows the AI to hear the mood/tempo without crashing on large uploads.
       const API_INLINE_LIMIT = 18 * 1024 * 1024;
       let blobForAnalysis: Blob = file;
       
       if (file.size > API_INLINE_LIMIT) {
         console.log("File too large for inline analysis, slicing first 18MB...");
-        // Important: Pass the corrected mimeType to slice to ensure consistency
         blobForAnalysis = file.slice(0, API_INLINE_LIMIT, mimeType);
       }
 
       const base64 = await fileToBase64(blobForAnalysis);
-      // We store the (potentially partial) base64 if needed, mostly for consistency
       setAudioFile(prev => prev ? { ...prev, base64 } : null);
 
       const suggestedPrompt = await analyzeAudioAndGeneratePrompt(base64, mimeType);
@@ -119,7 +112,15 @@ export default function App() {
       setStep(AppStep.RESULT);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Failed to generate video. It might be a busy period for Veo, or the prompt triggered safety filters.");
+      
+      let msg = "Failed to generate video.";
+      if (err.message?.includes("400") || err.message?.includes("BILLING") || err.status === 400) {
+        msg = "Video generation requires a Paid API Key (Google Veo). Free tier keys only work for the audio analysis step.";
+      } else if (err.message) {
+        msg = err.message;
+      }
+
+      setError(msg);
       setStep(AppStep.PROMPT_EDIT);
     }
   };
@@ -169,7 +170,7 @@ export default function App() {
           
           {error && (
             <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center animate-in slide-in-from-top-4 flex items-center justify-center gap-2">
-              <CheckCircle2 size={20} className="text-red-400 rotate-45" />
+              {error.includes("Paid API") ? <DollarSign size={20} className="text-red-400" /> : <CheckCircle2 size={20} className="text-red-400 rotate-45" />}
               <span>{error}</span>
             </div>
           )}

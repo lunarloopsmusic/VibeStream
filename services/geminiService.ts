@@ -1,31 +1,44 @@
 import { GoogleGenAI } from "@google/genai";
 
-const getClient = async (): Promise<GoogleGenAI> => {
-  // Check for Veo-compatible key selection
-  // Cast window to any to access aistudio property without type conflicts
+// We separate the client logic. 
+// 'strictMode' = true means we ideally want a paid key (for Veo).
+// 'strictMode' = false means a free key is fine (for Flash).
+const getClient = async (strictMode: boolean = false): Promise<GoogleGenAI> => {
   const win = window as any;
-  if (win.aistudio) {
+  
+  // Only force the UI picker if we are in strict mode (Video Generation)
+  // and we are in the AI Studio preview environment.
+  if (strictMode && win.aistudio) {
     const hasKey = await win.aistudio.hasSelectedApiKey();
     if (!hasKey) {
-      await win.aistudio.openSelectKey();
+      try {
+        await win.aistudio.openSelectKey();
+      } catch (e) {
+        console.warn("Key selection dialog cancelled or failed", e);
+      }
     }
   }
   
   // Initialize with the environment variable injected by the platform.
-  // We use a safety check for 'process' to avoid crashes in browser environments (like Cloudflare Pages)
-  // where 'process' might not be polyfilled by the build tool.
   let apiKey = '';
   try {
     if (typeof process !== 'undefined' && process.env) {
       apiKey = process.env.API_KEY || '';
     }
   } catch (e) {
-    // Ignore reference errors
     console.warn("Could not access process.env");
   }
 
-  if (!apiKey && (!win.aistudio || !(await win.aistudio.hasSelectedApiKey()))) {
-    throw new Error("API_KEY is missing. Please ensure you have selected a key or configured it in your environment.");
+  // If we still don't have a key after checking env, try the window global (last resort)
+  if (!apiKey && win.aistudio && (await win.aistudio.hasSelectedApiKey())) {
+    // In some envs, the key might be injected differently, but usually process.env is the standard.
+    // We rely on the fact that openSelectKey updates process.env in the runner.
+  }
+
+  if (!apiKey) {
+    // If it's strict mode (Veo), we error out.
+    // If it's not strict (Analysis), we also error out because we need *some* key.
+    throw new Error("API_KEY is missing. Please ensure you have configured it in your environment.");
   }
 
   return new GoogleGenAI({ apiKey: apiKey });
@@ -33,14 +46,15 @@ const getClient = async (): Promise<GoogleGenAI> => {
 
 /**
  * Analyzes the uploaded audio to generate a creative video prompt.
+ * Uses Gemini 2.5 Flash (Free Tier eligible).
  */
 export const analyzeAudioAndGeneratePrompt = async (
   base64Audio: string,
   mimeType: string
 ): Promise<string> => {
-  const ai = await getClient();
+  // Pass false to allow free keys
+  const ai = await getClient(false);
   
-  // Using gemini-2.5-flash for efficient multimodal analysis
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: {
@@ -72,13 +86,15 @@ export const analyzeAudioAndGeneratePrompt = async (
 
 /**
  * Generates a video using Google Veo based on the prompt.
+ * Requires a PAID API Key (Veo is not free).
  */
 export const generateVideo = async (
   prompt: string,
   aspectRatio: '16:9' | '9:16',
   resolution: '720p' | '1080p'
 ): Promise<string> => {
-  const ai = await getClient();
+  // Pass true to enforce paid key checks in supported environments
+  const ai = await getClient(true);
 
   // Initial request to start video generation
   let operation = await ai.models.generateVideos({
@@ -104,11 +120,6 @@ export const generateVideo = async (
     throw new Error("Failed to generate video URI.");
   }
 
-  // The URI requires the API key appended to fetch the actual binary data
-  // However, for the <video> src, we usually need a signed URL or a blob.
-  // The SDK docs suggest fetching it. We will fetch and blob it to ensure it plays nicely.
-  
-  // We need the key again for the fetch. 
   let keyParam = '';
   try {
      if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
