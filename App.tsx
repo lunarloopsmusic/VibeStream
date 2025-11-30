@@ -18,7 +18,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   // Utilities
-  const fileToBase64 = (file: File): Promise<string> => {
+  // Updated to accept Blob so we can handle sliced files
+  const fileToBase64 = (file: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -34,8 +35,9 @@ export default function App() {
 
   const handleFileSelect = async (file: File) => {
     try {
-      if (file.size > 15 * 1024 * 1024) {
-        setError("File size too large. Please upload an audio file smaller than 15MB.");
+      // Increased limit to 100MB
+      if (file.size > 100 * 1024 * 1024) {
+        setError("File size too large. Please upload an audio file smaller than 100MB.");
         return;
       }
 
@@ -49,9 +51,20 @@ export default function App() {
       setError(null);
       setStep(AppStep.ANALYZING);
 
-      // Start Analysis immediately
-      const base64 = await fileToBase64(file);
-      // Update state with base64 for later if needed, though we pass it now
+      // Prepare audio for analysis. 
+      // Gemini has a strict limit (~20MB) for inline media data.
+      // If the file is larger than 18MB, we slice the first 18MB for analysis.
+      // This allows the AI to hear the mood/tempo without crashing on large uploads.
+      const API_INLINE_LIMIT = 18 * 1024 * 1024;
+      let blobForAnalysis: Blob = file;
+      
+      if (file.size > API_INLINE_LIMIT) {
+        console.log("File too large for inline analysis, slicing first 18MB...");
+        blobForAnalysis = file.slice(0, API_INLINE_LIMIT, file.type);
+      }
+
+      const base64 = await fileToBase64(blobForAnalysis);
+      // We store the (potentially partial) base64 if needed, mostly for consistency
       setAudioFile(prev => prev ? { ...prev, base64 } : null);
 
       const suggestedPrompt = await analyzeAudioAndGeneratePrompt(base64, file.type);

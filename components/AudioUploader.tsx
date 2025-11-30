@@ -44,7 +44,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
         <p className="text-zinc-400 mb-6">Drag and drop or click to browse (MP3, WAV)</p>
         <div className="flex items-center gap-2 text-xs text-zinc-500 bg-zinc-800/50 px-3 py-1.5 rounded-full">
           <Music size={12} />
-          <span>Max file size 10MB recommended</span>
+          <span>Max file size 100MB</span>
         </div>
       </label>
     </div>
