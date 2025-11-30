@@ -42,6 +42,17 @@ export interface LyricsConfig {
   yOffset: number;
 }
 
+export interface CenterTextConfig {
+  content: string;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  strokeColor: string;
+  strokeWidth: number;
+  glowColor: string;
+  glowStrength: number;
+}
+
 export interface VisualizerConfig {
   // Global / Scene
   presetName: string;
@@ -64,13 +75,15 @@ export interface VisualizerConfig {
   bgImageOpacity: number;
   bgImageBlur: number;
   
+  centerType: 'image' | 'text'; // New
   centerImage: string | null;
   centerImageSize: number;
   centerImageCircular: boolean;
+  centerTextConfig: CenterTextConfig; // New
 
   // Typography
   text: TextConfig;
-  lyrics: LyricsConfig; // New
+  lyrics: LyricsConfig; 
 
   // Audio Reactivity
   sensitivity: number;
@@ -93,5 +106,5 @@ export interface VisualizerConfig {
   particleCount: number;
   particleSpeed: number;
   particleStyle: 'circle' | 'square' | 'triangle' | 'star' | 'heart' | 'snowflake';
-  particleDirection: 'outwards' | 'up' | 'down' | 'random'; // New: Snow/Rise/Ambient
+  particleDirection: 'outwards' | 'up' | 'down' | 'random';
 }

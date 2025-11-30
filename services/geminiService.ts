@@ -145,7 +145,7 @@ export const analyzeAudioForVisualizer = async (
     particleCount: 50,
     particleSpeed: 2,
     particleStyle: 'circle',
-    particleDirection: 'random', // Default to ambient/floating like Vizzy
+    particleDirection: 'random',
     bloomStrength: 20,
     rotationSpeed: 0.5,
     cinematicBars: false,
@@ -154,9 +154,20 @@ export const analyzeAudioForVisualizer = async (
     backgroundImage: null,
     bgImageOpacity: 0.5,
     bgImageBlur: 0,
+    centerType: 'image',
     centerImage: null,
     centerImageSize: 1.0,
     centerImageCircular: true,
+    centerTextConfig: {
+        content: "LOGO",
+        fontFamily: "Russo One",
+        fontSize: 60,
+        color: "#ffffff",
+        strokeColor: "#000000",
+        strokeWidth: 2,
+        glowColor: "#a855f7",
+        glowStrength: 0
+    },
     text: {
       enabled: true,
       topText: cleanName,
@@ -171,7 +182,7 @@ export const analyzeAudioForVisualizer = async (
     lyrics: {
       enabled: false,
       content: "",
-      syncData: [], // Initialize empty sync data
+      syncData: [], 
       fontFamily: "Montserrat",
       fontSize: 32,
       color: "#ffffff",
@@ -204,7 +215,11 @@ export const analyzeAudioForVisualizer = async (
       ...parsed,
       text: {
         ...defaultConfig.text,
-        color: parsed.primaryColor || "#ffffff" // Match text to primary color
+        color: parsed.primaryColor || "#ffffff" 
+      },
+      centerTextConfig: {
+          ...defaultConfig.centerTextConfig,
+          glowColor: parsed.primaryColor || "#a855f7"
       }
     };
 

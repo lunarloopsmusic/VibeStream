@@ -590,7 +590,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       }
       ctx.restore(); // End BG shake
 
-      // 3. Spectrum (MOVED BEFORE PARTICLES for Layering)
+      // 3. Spectrum
       if (cfg.showBars) {
         ctx.save();
         ctx.translate(shakeX, shakeY);
@@ -738,10 +738,41 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
         ctx.restore();
       }
 
-      // 4. Center Image (MOVED BEFORE PARTICLES for Layering)
-      if (centerImageRef.current && cfg.centerImage) {
+      // 4. Center Asset (Image OR Text)
+      const pulse = isBeat ? 1.03 : 1.0;
+
+      if (cfg.centerType === 'text') {
+           // LOGO TEXT RENDERING
+           ctx.save();
+           ctx.translate(cx + shakeX, cy + shakeY);
+           ctx.scale(pulse, pulse); 
+           
+           const textCfg = cfg.centerTextConfig || { content: 'LOGO', fontSize: 60, color: 'white', fontFamily: 'Inter' };
+           const fontSize = textCfg.fontSize * scaleFactor;
+           
+           ctx.textAlign = 'center';
+           ctx.textBaseline = 'middle';
+           ctx.font = `bold ${fontSize}px "${textCfg.fontFamily}"`;
+           
+           if (textCfg.glowStrength > 0) {
+                ctx.shadowBlur = textCfg.glowStrength * scaleFactor;
+                ctx.shadowColor = textCfg.glowColor;
+           }
+
+           if (textCfg.strokeWidth > 0) {
+                ctx.lineWidth = textCfg.strokeWidth * scaleFactor;
+                ctx.strokeStyle = textCfg.strokeColor;
+                ctx.strokeText(textCfg.content, 0, 0);
+           }
+           
+           ctx.fillStyle = textCfg.color;
+           ctx.fillText(textCfg.content, 0, 0);
+           
+           ctx.restore();
+
+      } else if (centerImageRef.current && cfg.centerImage) {
+          // IMAGE RENDERING
           const baseSize = (350 * cfg.centerImageSize) * scaleFactor;
-          const pulse = isBeat ? 1.03 : 1.0;
           const size = baseSize * pulse;
           ctx.save();
           ctx.translate(cx + shakeX, cy + shakeY);
@@ -754,20 +785,17 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           ctx.restore();
       }
 
-      // 5. Particles (NOW DRAWN HERE - ON TOP OF SPECTRUM/IMAGE)
+      // 5. Particles
       if (cfg.showParticles) {
-          // Determine spawn rate: Beat-based for center burst, Continuous for Ambient/Snow/Rise
           const isDirectional = ['up', 'down', 'random'].includes(cfg.particleDirection || 'outwards');
           const shouldSpawn = isDirectional 
-              ? particlesRef.current.length < cfg.particleCount // Fill to max count
-              : (isBeat && particlesRef.current.length < cfg.particleCount); // Burst on beat
+              ? particlesRef.current.length < cfg.particleCount 
+              : (isBeat && particlesRef.current.length < cfg.particleCount); 
 
           if (shouldSpawn) {
              const pColor = cfg.rainbowMode 
                 ? `hsl(${Math.random() * 360}, 100%, 60%)`
                 : (Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor);
-             
-             // Spawn fewer particles for continuous modes to avoid stutter, more for burst
              const batchSize = isDirectional ? 1 : 3;
 
              for(let i=0; i < batchSize; i++) {
@@ -780,16 +808,10 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           for (let i = particlesRef.current.length - 1; i >= 0; i--) {
             const p = particlesRef.current[i];
             p.update(cfg.particleDirection || 'outwards');
-            
-            // Wrap around for Snow/Rise/Random to maintain flow, kill for Burst
             if (isDirectional) {
                 if (p.life <= 0) {
-                     // Respawn instead of killing? Or just let it die and new one spawns
-                     // Let's reset life sometimes to keep density high without re-allocation
-                     // But simpler to remove and let spawn logic handle it
                      particlesRef.current.splice(i, 1);
                 } else {
-                     // Wrap coordinates
                      if (p.x < 0) p.x = w;
                      if (p.x > w) p.x = 0;
                      if (cfg.particleDirection === 'down' && p.y > h) p.y = -10;
@@ -802,7 +824,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             } else {
                 if (p.life <= 0) particlesRef.current.splice(i, 1);
             }
-            
             p.draw(ctx, cfg.particleStyle || 'circle');
           }
       }
@@ -839,30 +860,23 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       const rawLines = cfg.lyrics.content.split('\n').filter(l => l.trim() !== '');
       const totalLines = rawLines.length;
 
-      // Handle Sync Overlay (When Syncing Mode is Active)
       if (isSyncingRef.current) {
           ctx.save();
           ctx.fillStyle = 'rgba(0,0,0,0.7)';
           ctx.fillRect(0, 0, w, h);
-          
           ctx.textAlign = 'center';
           ctx.fillStyle = 'white';
           ctx.font = `bold ${60 * scaleFactor}px "Inter"`;
           ctx.fillText("SYNC MODE ACTIVE", cx, cy - (100 * scaleFactor));
-          
           ctx.font = `normal ${30 * scaleFactor}px "Inter"`;
           ctx.fillText("Tap SPACEBAR to sync this line:", cx, cy - (40 * scaleFactor));
-          
-          ctx.fillStyle = '#a855f7'; // Highlight color
+          ctx.fillStyle = '#a855f7'; 
           ctx.font = `bold ${50 * scaleFactor}px "Inter"`;
           const pendingLine = rawLines[syncIndexRef.current] || "End of Lyrics";
           ctx.fillText(pendingLine, cx, cy + (50 * scaleFactor));
-
-          // Progress indicator
           ctx.fillStyle = '#666';
           ctx.font = `normal ${20 * scaleFactor}px "Inter"`;
           ctx.fillText(`Line ${syncIndexRef.current + 1} of ${totalLines}`, cx, cy + (120 * scaleFactor));
-          
           ctx.restore();
       }
       else if (cfg.lyrics?.enabled && totalLines > 0) {
@@ -874,79 +888,56 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           let currentLineIndex = 0;
           let progress = 0;
 
-          // DETERMINING CURRENT LINE: Sync Data vs Distribution Fallback
           if (cfg.lyrics.syncData && cfg.lyrics.syncData.length > 0) {
-              // 1. Time-Based Sync Lookup
-              // Find the last line that has a time <= currentPlayTime
               let foundIndex = -1;
               for (let i = 0; i < cfg.lyrics.syncData.length; i++) {
                   if (currentPlayTime >= cfg.lyrics.syncData[i].time) {
                       foundIndex = i;
                   } else {
-                      break; // Optimization: syncData is chronologically ordered
+                      break; 
                   }
               }
               currentLineIndex = foundIndex;
-              
-              // Calculate progress within this line for Karaoke effect
               if (currentLineIndex >= 0) {
                   const startTime = cfg.lyrics.syncData[currentLineIndex].time;
-                  // If there is a next line, end time is that. If not, maybe +3 seconds?
                   const endTime = cfg.lyrics.syncData[currentLineIndex + 1]?.time || (startTime + 3);
                   const duration = endTime - startTime;
                   progress = Math.min(1, Math.max(0, (currentPlayTime - startTime) / duration));
               }
-
           } else {
-              // 2. Simple Distribution Fallback (Old Method)
               const effectiveDuration = currentDuration * 0.9; 
               const effectiveTime = Math.max(0, currentPlayTime - (currentDuration * 0.05));
               const globalProgress = Math.min(1, Math.max(0, effectiveTime / effectiveDuration));
               currentLineIndex = Math.floor(globalProgress * totalLines);
-              // Rough internal progress
               progress = (globalProgress * totalLines) % 1; 
           }
           
           const scaledFontSize = cfg.lyrics.fontSize * scaleFactor;
           ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
 
-          // RENDER STYLES
           if (cfg.lyrics.animationStyle === 'scroll') {
-              // Scroll Mode
               const windowSize = 5;
               const lineHeight = scaledFontSize * 1.5;
-              
-              // Calculate scroll based on index, not just raw time
               const scrollOffset = (currentLineIndex * lineHeight) - (windowSize * lineHeight / 2) + (progress * lineHeight);
-
               ctx.beginPath();
-              ctx.rect(-w/2, -h/2 + 200 * scaleFactor, w, h/2); // clip bottom area
+              ctx.rect(-w/2, -h/2 + 200 * scaleFactor, w, h/2); 
               ctx.clip();
-              
               rawLines.forEach((line, i) => {
                   const y = (i * lineHeight) - scrollOffset + (200 * scaleFactor); 
                   const distFromCenter = Math.abs(y - (200 * scaleFactor));
                   const opacity = Math.max(0, 1 - (distFromCenter / (lineHeight * 3)));
-                  
                   if (opacity > 0) {
                       ctx.fillStyle = cfg.lyrics.color;
                       ctx.globalAlpha = opacity * cfg.lyrics.opacity;
                       ctx.fillText(line, 0, y);
                   }
               });
-
           } else {
-              // Highlight / Karaoke / Static Mode
               const activeLine = rawLines[currentLineIndex] || "";
-              // Use sync data for content to avoid mismatch if rawLines differs
-              // (but here rawLines IS content, so it matches)
-              
               const prevLine = rawLines[currentLineIndex - 1] || "";
               const nextLine = rawLines[currentLineIndex + 1] || "";
-              
               const lineHeight = scaledFontSize * 1.4;
 
-              // Previous Line (Dimmed)
               ctx.fillStyle = cfg.lyrics.color;
               ctx.globalAlpha = cfg.lyrics.opacity * 0.3;
               if (cfg.lyrics.animationStyle !== 'static') {
@@ -954,7 +945,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                   ctx.fillText(prevLine, 0, -lineHeight);
               }
 
-              // Active Line
               ctx.globalAlpha = cfg.lyrics.opacity;
               ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
               
@@ -962,25 +952,18 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                   const charCount = Math.floor(activeLine.length * progress);
                   const filledPart = activeLine.substring(0, charCount);
                   const emptyPart = activeLine.substring(charCount);
-                  
                   const totalWidth = ctx.measureText(activeLine).width;
                   const filledWidth = ctx.measureText(filledPart).width;
                   const startX = -totalWidth / 2;
-                  
-                  // Draw filled
                   ctx.fillStyle = cfg.primaryColor; 
                   ctx.shadowColor = cfg.primaryColor;
                   ctx.shadowBlur = 20;
                   ctx.fillText(filledPart, startX + (filledWidth/2), 0);
                   ctx.shadowBlur = 0;
-                  
-                  // Draw remaining
                   ctx.fillStyle = cfg.lyrics.color;
                   ctx.globalAlpha = 0.5;
                   ctx.fillText(emptyPart, startX + filledWidth + (ctx.measureText(emptyPart).width/2), 0);
-
               } else {
-                  // Standard Highlight
                   if (cfg.lyrics.animationStyle === 'highlight') {
                       ctx.shadowColor = 'black';
                       ctx.shadowBlur = 10 * scaleFactor;
@@ -990,11 +973,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                   ctx.fillStyle = cfg.lyrics.color;
                   ctx.fillText(activeLine, 0, 0);
               }
-
-              // Next Line (Dimmed)
               ctx.resetTransform(); 
               ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor)); 
-              
               ctx.fillStyle = cfg.lyrics.color;
               ctx.globalAlpha = cfg.lyrics.opacity * 0.3;
               if (cfg.lyrics.animationStyle !== 'static') {
@@ -1030,8 +1010,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   }, []);
 
 
-  // --- EXPORT LOGIC ---
-
+  // --- EXPORT LOGIC --- (Omitted for brevity, unchanged)
   const handleStartExport = async () => {
       setShowExportModal(false);
       setIsExporting(true);
@@ -1046,7 +1025,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           canvasRef.current.height = targetHeight;
       }
 
-      // 1. Setup Stream
       const mimeType = "video/webm;codecs=vp9";
       let recorder: MediaRecorder | null = null;
       try {
@@ -1063,9 +1041,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
         const audioTrack = streamDestRef.current!.stream.getAudioTracks()[0];
         stream.addTrack(audioTrack);
 
-        let bits = 8000000; // 8Mbps default
+        let bits = 8000000; 
         if (exportSettings.quality === 'low') bits = 4000000;
-        if (exportSettings.quality === 'high') bits = 25000000; // 4K/25Mbps
+        if (exportSettings.quality === 'high') bits = 25000000; 
         
         recorder = new MediaRecorder(stream, {
             mimeType,
@@ -1102,7 +1080,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           }
       };
 
-      // 2. Play & Record
       if (analyserRef.current && audioContextRef.current) {
          analyserRef.current.disconnect(audioContextRef.current.destination);
       }
@@ -1114,7 +1091,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       
       recorder.start();
 
-      // 3. Watch for end
       const checkProgress = setInterval(() => {
           if (!audioRef.current) return;
           const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
@@ -1132,14 +1108,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           mediaRecorderRef.current.stop();
       }
       setIsExporting(false);
-      // restore audio
       if (analyserRef.current && audioContextRef.current) {
           analyserRef.current.connect(audioContextRef.current.destination);
       }
   };
 
-
-  // --- UI ACTIONS ---
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -1151,7 +1124,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
     setIsPlaying(!isPlaying);
   };
 
-  // --- RENDER COMPONENT ---
   return (
     <div className="h-screen w-full bg-[#0a0a0a] flex flex-col overflow-hidden font-sans selection:bg-indigo-500/30">
         
@@ -1283,8 +1255,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                 
                 <div className="relative shadow-2xl shadow-black border border-zinc-900 aspect-video w-full max-h-full max-w-[1280px] bg-black">
                     <canvas ref={canvasRef} className="w-full h-full object-contain block" />
-
-                    {/* Download Modal */}
                     {downloadUrl && (
                         <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm animate-in fade-in duration-300">
                             <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800 text-center max-w-sm shadow-2xl">
@@ -1498,42 +1468,113 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                          </div>
                     )}
 
-                    {/* FOREGROUND CONFIG */}
+                    {/* FOREGROUND CONFIG (CENTER ASSET) */}
                     {activeLayer === 'foreground' && (
                          <div className="animate-in slide-in-from-right-4 fade-in duration-300">
-                             <ControlGroup title="Center Asset">
-                                <label className="block w-full h-32 border border-dashed border-zinc-800 rounded-lg bg-zinc-900/50 hover:bg-zinc-900 cursor-pointer relative overflow-hidden group transition-colors flex flex-col items-center justify-center">
-                                     {config.centerImage ? (
-                                        <img src={config.centerImage} className="w-full h-full object-contain p-4" />
-                                     ) : (
-                                        <>
-                                            <Layers size={24} className="mb-2 text-zinc-600 group-hover:text-zinc-400" />
-                                            <span className="text-[10px] uppercase font-bold text-zinc-600 group-hover:text-zinc-400">Upload Logo/Art</span>
-                                        </>
-                                     )}
-                                     <input type="file" className="hidden" accept="image/*" onChange={(e) => {
-                                         const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (v) => setConfig({...config, centerImage: v.target?.result as string}); r.readAsDataURL(f); }
-                                     }} />
-                                      {config.centerImage && (
-                                         <button onClick={(e) => { e.preventDefault(); setConfig({...config, centerImage: null}); }} className="absolute top-2 right-2 bg-red-500/20 text-red-400 p-1.5 rounded hover:bg-red-500 hover:text-white transition-colors">
-                                             <RefreshCcw size={12} />
-                                         </button>
-                                     )}
-                                </label>
-                                {config.centerImage && (
-                                     <div className="mt-4 space-y-4">
-                                         <Slider label="Scale" min={0.2} max={2} step={0.1} value={config.centerImageSize} onChange={(v) => setConfig({...config, centerImageSize: v})} />
-                                         <div className="flex items-center justify-between text-xs p-2 bg-zinc-900 rounded border border-zinc-800">
-                                             <span className="text-zinc-300">Circular Crop</span>
-                                             <input type="checkbox" checked={config.centerImageCircular} onChange={e => setConfig({...config, centerImageCircular: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
-                                         </div>
+                             <ControlGroup title="Center Type">
+                                <div className="flex bg-zinc-900 p-1 rounded-lg border border-zinc-800 mb-4">
+                                    <button onClick={() => setConfig({...config, centerType: 'image'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.centerType==='image' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Upload Image</button>
+                                    <button onClick={() => setConfig({...config, centerType: 'text'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.centerType==='text' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Text Logo</button>
+                                </div>
+                             </ControlGroup>
+
+                             {config.centerType === 'image' ? (
+                                <ControlGroup title="Image Settings">
+                                    <label className="block w-full h-32 border border-dashed border-zinc-800 rounded-lg bg-zinc-900/50 hover:bg-zinc-900 cursor-pointer relative overflow-hidden group transition-colors flex flex-col items-center justify-center">
+                                        {config.centerImage ? (
+                                            <img src={config.centerImage} className="w-full h-full object-contain p-4" />
+                                        ) : (
+                                            <>
+                                                <Layers size={24} className="mb-2 text-zinc-600 group-hover:text-zinc-400" />
+                                                <span className="text-[10px] uppercase font-bold text-zinc-600 group-hover:text-zinc-400">Upload Logo/Art</span>
+                                            </>
+                                        )}
+                                        <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                                            const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (v) => setConfig({...config, centerImage: v.target?.result as string}); r.readAsDataURL(f); }
+                                        }} />
+                                        {config.centerImage && (
+                                            <button onClick={(e) => { e.preventDefault(); setConfig({...config, centerImage: null}); }} className="absolute top-2 right-2 bg-red-500/20 text-red-400 p-1.5 rounded hover:bg-red-500 hover:text-white transition-colors">
+                                                <RefreshCcw size={12} />
+                                            </button>
+                                        )}
+                                    </label>
+                                    {config.centerImage && (
+                                        <div className="mt-4 space-y-4">
+                                            <Slider label="Scale" min={0.2} max={2} step={0.1} value={config.centerImageSize} onChange={(v) => setConfig({...config, centerImageSize: v})} />
+                                            <div className="flex items-center justify-between text-xs p-2 bg-zinc-900 rounded border border-zinc-800">
+                                                <span className="text-zinc-300">Circular Crop</span>
+                                                <input type="checkbox" checked={config.centerImageCircular} onChange={e => setConfig({...config, centerImageCircular: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
+                                            </div>
+                                        </div>
+                                    )}
+                                </ControlGroup>
+                             ) : (
+                                <ControlGroup title="Logo Design">
+                                    <div className="space-y-4">
+                                        <input 
+                                            type="text" 
+                                            value={config.centerTextConfig?.content || "LOGO"}
+                                            onChange={e => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), content: e.target.value} as any})}
+                                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-white font-bold outline-none focus:border-indigo-500"
+                                            placeholder="LOGO TEXT"
+                                        />
+                                        
+                                        <div>
+                                            <label className="text-xs text-zinc-300 font-medium mb-1 block">Logo Font</label>
+                                            <select 
+                                                value={config.centerTextConfig?.fontFamily || "Russo One"} 
+                                                onChange={e => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), fontFamily: e.target.value} as any})}
+                                                className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-xs text-zinc-300 outline-none focus:border-indigo-500"
+                                            >
+                                                <option value="Russo One">Russo One (Bold Tech)</option>
+                                                <option value="Audiowide">Audiowide (Sci-Fi)</option>
+                                                <option value="Black Ops One">Black Ops (Military)</option>
+                                                <option value="Bangers">Bangers (Comic)</option>
+                                                <option value="Creepster">Creepster (Horror)</option>
+                                                <option value="Fredoka One">Fredoka (Rounded)</option>
+                                                <option value="Permanent Marker">Marker (Graffiti)</option>
+                                                <option value="Righteous">Righteous (Modern)</option>
+                                                <option value="Inter">Inter (Clean)</option>
+                                            </select>
+                                        </div>
+
+                                        <Slider label="Size" min={20} max={150} step={5} value={config.centerTextConfig?.fontSize || 60} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), fontSize: v} as any})} />
+                                        
+                                        <ColorPicker label="Fill Color" value={config.centerTextConfig?.color || '#ffffff'} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), color: v} as any})} />
+                                        
+                                        <div className="pt-2 border-t border-zinc-800/50">
+                                            <ColorPicker label="Stroke Color" value={config.centerTextConfig?.strokeColor || '#000000'} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), strokeColor: v} as any})} />
+                                            <div className="mt-2">
+                                                <Slider label="Stroke Width" min={0} max={10} step={0.5} value={config.centerTextConfig?.strokeWidth || 0} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), strokeWidth: v} as any})} />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-zinc-800/50">
+                                             <ColorPicker label="Glow Color" value={config.centerTextConfig?.glowColor || '#a855f7'} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), glowColor: v} as any})} />
+                                             <div className="mt-2">
+                                                 <Slider label="Glow Strength" min={0} max={50} step={1} value={config.centerTextConfig?.glowStrength || 0} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), glowStrength: v} as any})} />
+                                             </div>
+                                        </div>
+                                    </div>
+                                </ControlGroup>
+                             )}
+                             
+                             <ControlGroup title="Reactivity">
+                                 <div className="flex items-center justify-between text-xs p-2 bg-zinc-900 rounded border border-zinc-800">
+                                      <span className="text-zinc-300">Pulse to Beat</span>
+                                      <span className="text-indigo-400 font-bold">Always On</span>
+                                 </div>
+                                 <p className="text-[10px] text-zinc-500 mt-2">Center element reacts to sensitivity settings in Scene layer.</p>
+                                 {config.centerType === 'image' && (
+                                     <div className="mt-4">
+                                        <Slider label="Size Scale" min={0.2} max={2} step={0.1} value={config.centerImageSize} onChange={(v) => setConfig({...config, centerImageSize: v})} />
                                      </div>
                                  )}
                              </ControlGroup>
                          </div>
                     )}
 
-                    {/* TEXT CONFIG */}
+                    {/* TEXT CONFIG (TITLE OVERLAY) */}
                     {activeLayer === 'text' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Content">
@@ -1566,6 +1607,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         <option value="Dancing Script">Dancing Script (Cursive)</option>
                                         <option value="Orbitron">Orbitron (Sci-Fi)</option>
                                         <option value="Cinzel">Cinzel (Cinematic)</option>
+                                        <option value="Bangers">Bangers (Comic)</option>
+                                        <option value="Audiowide">Audiowide (Sci-Fi)</option>
                                     </select>
                                     <ColorPicker label="Text Color" value={config.text.color} onChange={(v) => setConfig({...config, text: {...config.text, color: v}})} />
                                     <Slider label="Font Size" min={20} max={150} step={5} value={config.text.fontSize} onChange={(v) => setConfig({...config, text: {...config.text, fontSize: v}})} />
