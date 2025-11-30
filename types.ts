@@ -22,6 +22,15 @@ export interface VisualizerConfig {
   secondaryColor: string;
   backgroundColor: string;
 
+  // Assets (New)
+  backgroundImage: string | null; // Data URL
+  bgImageOpacity: number; // 0 to 1
+  bgImageBlur: number; // 0 to 20px
+  
+  centerImage: string | null; // Data URL (Logo)
+  centerImageSize: number; // 0.1 to 2.0 scale
+  centerImageCircular: boolean;
+
   // Audio Reactivity
   sensitivity: number; // 0.1 to 3.0
   smoothing: number; // 0.1 to 0.9

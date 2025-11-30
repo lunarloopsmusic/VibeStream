@@ -78,7 +78,19 @@ export const analyzeAudioForVisualizer = async (
     });
 
     const jsonText = response.text || "{}";
-    return JSON.parse(jsonText);
+    const parsed = JSON.parse(jsonText);
+    
+    // Merge with defaults to ensure all fields (including new image fields) exist
+    return {
+      ...parsed,
+      backgroundImage: null,
+      bgImageOpacity: 0.5,
+      bgImageBlur: 0,
+      centerImage: null,
+      centerImageSize: 1.0,
+      centerImageCircular: true,
+    };
+
   } catch (e) {
     console.error("Gemini Analysis Failed", e);
     // Fallback config
@@ -99,7 +111,13 @@ export const analyzeAudioForVisualizer = async (
       particleCount: 50,
       particleSpeed: 2,
       bloomStrength: 20,
-      rotationSpeed: 0.5
+      rotationSpeed: 0.5,
+      backgroundImage: null,
+      bgImageOpacity: 0.5,
+      bgImageBlur: 0,
+      centerImage: null,
+      centerImageSize: 1.0,
+      centerImageCircular: true,
     };
   }
 };

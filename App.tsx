@@ -78,9 +78,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col">
+    <div className="h-screen bg-[#09090b] text-zinc-100 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-xl sticky top-0 z-50">
+      <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-xl shrink-0 z-50">
         <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -106,20 +106,22 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
+      <main className="flex-1 flex flex-col relative overflow-hidden">
+        {step !== AppStep.VISUALIZER && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
+        )}
         
-        <div className="w-full max-w-[1920px] mx-auto z-10">
+        <div className={`w-full max-w-[1920px] mx-auto z-10 flex flex-col h-full ${step !== AppStep.VISUALIZER ? 'p-6 items-center justify-center' : ''}`}>
           
           {error && (
-            <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center flex items-center justify-center gap-2">
+            <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center flex items-center justify-center gap-2 shrink-0">
               <CheckCircle2 size={20} className="text-red-400 rotate-45" />
               <span>{error}</span>
             </div>
           )}
 
           {step === AppStep.UPLOAD && (
-            <div className="space-y-8 animate-in fade-in zoom-in duration-300 mt-20">
+            <div className="space-y-8 animate-in fade-in zoom-in duration-300 mt-[-100px]">
               <div className="text-center space-y-4">
                 <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-500">
                   Visualize your sound.
