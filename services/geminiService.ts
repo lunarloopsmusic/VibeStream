@@ -1,4 +1,6 @@
-import { GoogleGenAI, SchemaType } from "@google/genai";
+
+import { GoogleGenAI } from "@google/genai";
+import { VisualizerConfig } from "../types";
 
 const getClient = async (): Promise<GoogleGenAI> => {
   let apiKey = '';
@@ -15,7 +17,6 @@ const getClient = async (): Promise<GoogleGenAI> => {
   }
 
   if (!apiKey) {
-     // Allow proceeding without key for UI dev, but API calls will fail gracefully later
      console.warn("API Key missing");
   }
 
@@ -23,30 +24,43 @@ const getClient = async (): Promise<GoogleGenAI> => {
 };
 
 /**
- * Analyzes audio to determine visualizer settings (Colors, Style, Sensitivity).
+ * Analyzes audio to determine advanced visualizer settings.
  * Uses Gemini 2.5 Flash (Free Tier).
  */
 export const analyzeAudioForVisualizer = async (
   base64Audio: string,
   mimeType: string
-): Promise<any> => {
+): Promise<VisualizerConfig> => {
   const ai = await getClient();
   
-  const prompt = `Listen to this audio track. I am building a canvas audio visualizer.
+  const prompt = `Listen to this audio track. I am building a complex audio visualizer like Vizzy.io.
   Return a JSON object configuration that matches the mood of the song.
   
   The schema must be:
   {
-    "style": "bars" | "wave" | "orb" | "particles",
-    "primaryColor": "hex code string (e.g. #FF0055)",
-    "secondaryColor": "hex code string",
-    "sensitivity": number between 0.5 (chill) and 2.5 (intense),
-    "moodDescription": "short string describing the vibe"
+    "presetName": "Creative name for this vibe",
+    "mode": "circular" | "linear",
+    "primaryColor": "hex",
+    "secondaryColor": "hex",
+    "backgroundColor": "hex (usually dark)",
+    "sensitivity": number (0.5 to 2.5),
+    "smoothing": number (0.5 to 0.9),
+    "showBars": boolean,
+    "barCount": number (64 for simple, 128 for detailed),
+    "barWidth": number (2 to 20),
+    "barHeightScale": number (1.0 to 2.5),
+    "mirror": boolean (true for symmetry),
+    "showParticles": boolean,
+    "particleCount": number (50 to 200),
+    "particleSpeed": number (1 to 5),
+    "bloomStrength": number (10 to 40),
+    "rotationSpeed": number (-2 to 2)
   }
 
-  - For energetic/techno/rock songs, use 'bars' or 'particles' and high sensitivity.
-  - For calm/ambient songs, use 'wave' or 'orb' and low sensitivity.
-  - Pick colors that match the emotion (Red/Orange for aggressive, Blue/Purple for calm).
+  Logic:
+  - EDM/Trap/Bass: Mode="circular", High sensitivity, High bloom, Particles=true.
+  - Lo-Fi/Ambient: Mode="linear", Low sensitivity, High smoothing, Pastel colors.
+  - Rock/Metal: Mode="linear", Red/Black colors, High particle speed, Mirror=true.
   `;
 
   try {
@@ -67,13 +81,25 @@ export const analyzeAudioForVisualizer = async (
     return JSON.parse(jsonText);
   } catch (e) {
     console.error("Gemini Analysis Failed", e);
-    // Fallback config if AI fails
+    // Fallback config
     return {
-      style: "bars",
+      presetName: "Fallback Rhythm",
+      mode: "circular",
       primaryColor: "#a855f7",
       secondaryColor: "#3b82f6",
-      sensitivity: 1.2,
-      moodDescription: "Upbeat fallback rhythm"
+      backgroundColor: "#09090b",
+      sensitivity: 1.5,
+      smoothing: 0.8,
+      showBars: true,
+      barCount: 64,
+      barWidth: 6,
+      barHeightScale: 1.5,
+      mirror: false,
+      showParticles: true,
+      particleCount: 50,
+      particleSpeed: 2,
+      bloomStrength: 20,
+      rotationSpeed: 0.5
     };
   }
 };

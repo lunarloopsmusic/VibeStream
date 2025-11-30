@@ -1,7 +1,8 @@
+
 export enum AppStep {
   UPLOAD = 'UPLOAD',
   ANALYZING = 'ANALYZING',
-  VISUALIZER = 'VISUALIZER', // Replaces PROMPT_EDIT and GENERATING
+  VISUALIZER = 'VISUALIZER',
 }
 
 export interface AudioFile {
@@ -12,9 +13,32 @@ export interface AudioFile {
 }
 
 export interface VisualizerConfig {
-  style: 'bars' | 'wave' | 'orb' | 'particles';
+  // General
+  presetName: string; // e.g., "Neon Pulse"
+  mode: 'circular' | 'linear';
+  
+  // Colors
   primaryColor: string;
   secondaryColor: string;
-  sensitivity: number; // 0.5 to 2.0
-  moodDescription: string;
+  backgroundColor: string;
+
+  // Audio Reactivity
+  sensitivity: number; // 0.1 to 3.0
+  smoothing: number; // 0.1 to 0.9
+  
+  // Spectrum (Bars)
+  showBars: boolean;
+  barCount: number; // 32 to 256
+  barWidth: number; // 1 to 50
+  barHeightScale: number; // 0.5 to 3.0
+  mirror: boolean; // For linear mode
+
+  // Particles
+  showParticles: boolean;
+  particleCount: number;
+  particleSpeed: number;
+
+  // Effects
+  bloomStrength: number; // 0 to 50
+  rotationSpeed: number; // -5 to 5 (for circular)
 }

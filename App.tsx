@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { AppStep, AudioFile, VisualizerConfig } from './types';
 import { AudioUploader } from './components/AudioUploader';
 import { AudioVisualizer } from './components/AudioVisualizer';
 import { analyzeAudioForVisualizer } from './services/geminiService';
-import { Wand2, Loader2, Music, Youtube, Film, CheckCircle2, DollarSign, Palette } from 'lucide-react';
+import { Music, Youtube, Film, CheckCircle2, Palette } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
@@ -11,7 +12,6 @@ export default function App() {
   const [visualizerConfig, setVisualizerConfig] = useState<VisualizerConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper to guess MIME type if the browser fails to detect it
   const getMimeType = (file: File): string => {
     if (file.type && file.type !== '') return file.type;
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -59,7 +59,6 @@ export default function App() {
 
       const base64 = await fileToBase64(blobForAnalysis);
       
-      // Get config from Gemini
       const config = await analyzeAudioForVisualizer(base64, mimeType);
       setVisualizerConfig(config);
       setStep(AppStep.VISUALIZER);
@@ -82,7 +81,7 @@ export default function App() {
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col">
       {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-[1920px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
               <Film size={18} className="text-white" />
@@ -96,7 +95,7 @@ export default function App() {
             </div>
             <div className="hidden md:flex items-center gap-2">
               <Palette size={16} />
-              <span>Canvas Visualizer</span>
+              <span>Studio Editor</span>
             </div>
             <div className="hidden md:flex items-center gap-2 text-purple-400">
               <Youtube size={16} />
@@ -107,10 +106,10 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
         
-        <div className="w-full max-w-5xl mx-auto z-10">
+        <div className="w-full max-w-[1920px] mx-auto z-10">
           
           {error && (
             <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center flex items-center justify-center gap-2">
@@ -120,14 +119,14 @@ export default function App() {
           )}
 
           {step === AppStep.UPLOAD && (
-            <div className="space-y-8 animate-in fade-in zoom-in duration-300">
+            <div className="space-y-8 animate-in fade-in zoom-in duration-300 mt-20">
               <div className="text-center space-y-4">
                 <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-500">
                   Visualize your sound.
                 </h1>
                 <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto">
-                  Upload your music track. Our AI determines the perfect visual style, 
-                  and our Real-time Engine renders a free 1080p video you can record and download.
+                  Upload your music track. Our AI generates a custom visualizer style,
+                  and our Pro Editor lets you tweak every detail.
                 </p>
               </div>
               <AudioUploader onFileSelected={handleFileSelect} />
@@ -135,14 +134,14 @@ export default function App() {
           )}
 
           {step === AppStep.ANALYZING && (
-            <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in">
+            <div className="flex flex-col items-center justify-center space-y-6 animate-in fade-in h-[60vh]">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full border-4 border-zinc-800 border-t-purple-500 animate-spin"></div>
                 <Music className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-purple-500" size={32} />
               </div>
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-white">Configuring Visual Engine...</h2>
-                <p className="text-zinc-400">Gemini is matching colors and motion styles to your music.</p>
+                <p className="text-zinc-400">Gemini is matching colors and physics to your music.</p>
               </div>
             </div>
           )}
@@ -157,10 +156,6 @@ export default function App() {
 
         </div>
       </main>
-
-      <footer className="border-t border-zinc-900 bg-zinc-950 py-8 text-center text-zinc-600 text-sm">
-        <p>© 2024 VibeStream. Browser-based Realtime Rendering.</p>
-      </footer>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+
 import React, { useCallback } from 'react';
 import { Upload, Music } from 'lucide-react';
 
@@ -11,8 +12,6 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
       e.preventDefault();
       const file = e.dataTransfer.files[0];
       
-      // Expanded validation: Check mime type OR file extension
-      // This fixes issues where Windows/Browsers don't correctly tag the mime type of audio files
       const isAudioType = file?.type.startsWith('audio/');
       const hasAudioExtension = file?.name.match(/\.(mp3|wav|ogg|m4a|flac|aac|wma)$/i);
 
@@ -48,7 +47,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
         </div>
         <h3 className="text-2xl font-semibold text-white mb-2">Upload your track</h3>
         <p className="text-zinc-400 mb-6">Drag and drop or click to browse (MP3, WAV)</p>
-        <div className="flex items-center gap-2 text-xs text-zinc-500 bg-zinc-800/50 px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-2 text-xs text-zinc-500 bg-zinc-800/50 px-3 py-1.5 rounded-full border border-zinc-800">
           <Music size={12} />
           <span>Max file size 100MB</span>
         </div>
