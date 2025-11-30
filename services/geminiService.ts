@@ -24,6 +24,10 @@ const getClient = async (): Promise<GoogleGenAI> => {
     console.warn("Could not access process.env");
   }
 
+  if (!apiKey && (!win.aistudio || !(await win.aistudio.hasSelectedApiKey()))) {
+    throw new Error("API_KEY is missing. Please ensure you have selected a key or configured it in your environment.");
+  }
+
   return new GoogleGenAI({ apiKey: apiKey });
 };
 

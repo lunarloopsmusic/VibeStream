@@ -17,6 +17,22 @@ export default function App() {
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to guess MIME type if the browser fails to detect it
+  const getMimeType = (file: File): string => {
+    if (file.type && file.type !== '') return file.type;
+    
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    switch(ext) {
+      case 'mp3': return 'audio/mpeg';
+      case 'wav': return 'audio/wav';
+      case 'ogg': return 'audio/ogg';
+      case 'm4a': return 'audio/mp4';
+      case 'flac': return 'audio/flac';
+      case 'aac': return 'audio/aac';
+      default: return 'audio/mpeg'; // Default to mp3 container as a safe fallback
+    }
+  };
+
   // Utilities
   // Updated to accept Blob so we can handle sliced files
   const fileToBase64 = (file: Blob): Promise<string> => {
@@ -41,12 +57,15 @@ export default function App() {
         return;
       }
 
+      // Safe MIME type detection
+      const mimeType = getMimeType(file);
+
       const url = URL.createObjectURL(file);
       setAudioFile({
         file,
         url,
         base64: '',
-        mimeType: file.type,
+        mimeType: mimeType,
       });
       setError(null);
       setStep(AppStep.ANALYZING);
@@ -60,21 +79,32 @@ export default function App() {
       
       if (file.size > API_INLINE_LIMIT) {
         console.log("File too large for inline analysis, slicing first 18MB...");
-        blobForAnalysis = file.slice(0, API_INLINE_LIMIT, file.type);
+        // Important: Pass the corrected mimeType to slice to ensure consistency
+        blobForAnalysis = file.slice(0, API_INLINE_LIMIT, mimeType);
       }
 
       const base64 = await fileToBase64(blobForAnalysis);
       // We store the (potentially partial) base64 if needed, mostly for consistency
       setAudioFile(prev => prev ? { ...prev, base64 } : null);
 
-      const suggestedPrompt = await analyzeAudioAndGeneratePrompt(base64, file.type);
+      const suggestedPrompt = await analyzeAudioAndGeneratePrompt(base64, mimeType);
       setPrompt(suggestedPrompt);
       setConfig(prev => ({ ...prev, prompt: suggestedPrompt }));
       setStep(AppStep.PROMPT_EDIT);
 
     } catch (err: any) {
-      console.error(err);
-      setError("Failed to analyze audio. Please try again with a different file.");
+      console.error("Analysis Error:", err);
+      let msg = "Failed to analyze audio. ";
+      
+      if (err.message && err.message.includes("API_KEY")) {
+        msg = "API Key missing. Please configure your API_KEY in settings or environment.";
+      } else if (err.status === 400) {
+        msg += "The file format might not be supported or the file is corrupted.";
+      } else {
+        msg += "Please try again with a different file.";
+      }
+      
+      setError(msg);
       setStep(AppStep.UPLOAD);
     }
   };
@@ -138,8 +168,9 @@ export default function App() {
         <div className="w-full max-w-5xl mx-auto z-10">
           
           {error && (
-            <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center animate-in slide-in-from-top-4">
-              {error}
+            <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-200 text-center animate-in slide-in-from-top-4 flex items-center justify-center gap-2">
+              <CheckCircle2 size={20} className="text-red-400 rotate-45" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -160,7 +191,7 @@ export default function App() {
                 <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
                     <div className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-400 font-bold">1</div>
                     <h3 className="font-semibold text-white">Upload Audio</h3>
-                    <p className="text-sm text-zinc-500 mt-1">MP3 or WAV supported</p>
+                    <p className="text-sm text-zinc-500 mt-1">MP3, WAV, FLAC supported</p>
                 </div>
                 <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
                     <div className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-400 font-bold">2</div>

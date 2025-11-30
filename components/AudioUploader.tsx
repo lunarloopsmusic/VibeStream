@@ -10,7 +10,13 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('audio/')) {
+      
+      // Expanded validation: Check mime type OR file extension
+      // This fixes issues where Windows/Browsers don't correctly tag the mime type of audio files
+      const isAudioType = file?.type.startsWith('audio/');
+      const hasAudioExtension = file?.name.match(/\.(mp3|wav|ogg|m4a|flac|aac|wma)$/i);
+
+      if (file && (isAudioType || hasAudioExtension)) {
         onFileSelected(file);
       }
     },
@@ -31,7 +37,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
     >
       <input
         type="file"
-        accept="audio/*"
+        accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac"
         onChange={handleChange}
         className="hidden"
         id="audio-upload"
