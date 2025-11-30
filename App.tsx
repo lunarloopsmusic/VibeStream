@@ -148,7 +148,7 @@ export default function App() {
                     
                     {/* Subheadline */}
                     <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 mt-8">
-                        Turn audio into cinema. Drag and drop your track to generate 
+                        Turn audio into video. Drag and drop your track to generate 
                         <span className="text-zinc-200 font-medium"> professional, audio-reactive visuals </span> 
                         instantly.
                     </p>
