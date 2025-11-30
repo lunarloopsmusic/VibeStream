@@ -3,7 +3,7 @@ import { AppStep, AudioFile, VisualizerConfig } from './types';
 import { AudioUploader } from './components/AudioUploader';
 import { AudioVisualizer } from './components/AudioVisualizer';
 import { analyzeAudioForVisualizer } from './services/geminiService';
-import { Sparkles, Zap, Aperture, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Zap, Aperture, CheckCircle2, Music2, Layers, Cpu } from 'lucide-react';
 
 export default function App() {
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
@@ -88,26 +88,29 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#050505] text-zinc-100 flex flex-col font-sans overflow-hidden">
+    <div className="h-screen w-screen bg-[#020202] text-zinc-100 flex flex-col font-sans overflow-hidden selection:bg-indigo-500/30">
       
       {/* Background Ambience */}
       <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/10 rounded-full blur-[150px]" />
-          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 rounded-full blur-[150px]" />
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-900/10 rounded-full blur-[120px] animate-pulse" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 rounded-full blur-[120px]" />
+          {/* Subtle Grid */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_100%)]" />
       </div>
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-6 max-w-[1400px] mx-auto w-full">
           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-tr from-white to-zinc-400 rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
-                  <Aperture className="text-black" size={24} />
+              <div className="w-8 h-8 bg-white/10 backdrop-blur-md border border-white/10 rounded-lg flex items-center justify-center">
+                  <Aperture className="text-white" size={18} />
               </div>
-              <span className="font-bold text-2xl tracking-tight text-white">VibeStream</span>
+              <span className="font-bold text-xl tracking-tight text-white/90">VibeStream</span>
           </div>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
-              <button className="hover:text-white transition-colors">Features</button>
-              <button className="hover:text-white transition-colors">Showcase</button>
-          </nav>
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-500">
+             <span className="flex items-center gap-1.5"><Cpu size={14}/> Gemini 2.5 Engine</span>
+             <span className="w-1 h-1 rounded-full bg-zinc-800" />
+             <span className="flex items-center gap-1.5"><Layers size={14}/> Real-time Rendering</span>
+          </div>
       </header>
 
       <main className="flex-1 relative z-10 flex flex-col h-full">
@@ -120,40 +123,59 @@ export default function App() {
 
         {/* Landing State */}
         {step === AppStep.UPLOAD && (
-            <div className="flex-1 flex flex-col items-center justify-center px-6">
-                <div className="text-center max-w-4xl mx-auto space-y-6 mb-16 animate-in fade-in zoom-in duration-500">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-semibold tracking-wide uppercase mb-4">
-                        <Sparkles size={12} /> AI-Powered Audio Visualization
+            <div className="flex-1 flex flex-col items-center justify-center px-6 relative">
+                <div className="max-w-5xl mx-auto w-full text-center mb-12">
+                    
+                    {/* Badge */}
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/5 backdrop-blur-md text-indigo-300 text-xs font-semibold tracking-wide uppercase mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                        </span>
+                        Next Gen Visualizer
                     </div>
-                    <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
-                        Transform Sound <br/>
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 animate-pulse">Into Cinema.</span>
+
+                    {/* Headline */}
+                    <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-6 animate-in fade-in zoom-in duration-700 delay-150 leading-[0.9] md:leading-[0.9]">
+                        Visualize <br />
+                        <span className="font-serif italic font-normal text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-white to-indigo-300">Your Music</span>
                     </h1>
-                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-                        Upload your music. Our Gemini AI analyzes the mood. <br className="hidden md:block"/>
-                        You get a professional, broadcast-ready music video in seconds.
+                    
+                    {/* Subheadline */}
+                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 mt-8">
+                        Turn audio into cinema. Drag and drop your track to generate 
+                        <span className="text-zinc-200 font-medium"> professional, audio-reactive visuals </span> 
+                        instantly.
                     </p>
                 </div>
                 
-                <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150">
+                {/* Uploader */}
+                <div className="w-full max-w-xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500 relative z-20">
                     <AudioUploader onFileSelected={handleFileSelect} />
+                </div>
+
+                {/* Footer Tech Specs */}
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-8 md:gap-16 text-[10px] md:text-xs font-mono text-zinc-600 uppercase tracking-widest animate-in fade-in duration-1000 delay-700 pointer-events-none">
+                    <span>4K Resolution Support</span>
+                    <span>60 FPS Export</span>
+                    <span>Hardware Accelerated</span>
                 </div>
             </div>
         )}
 
         {/* Analyzing State */}
         {step === AppStep.ANALYZING && (
-            <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-500">
-                <div className="relative w-32 h-32">
-                    <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30"></div>
+            <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-500 bg-black/50 backdrop-blur-sm">
+                <div className="relative w-24 h-24">
+                    <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20"></div>
                     <div className="absolute inset-0 rounded-full border-t-2 border-indigo-500 animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <Zap className="text-indigo-400 animate-pulse" size={40} />
+                        <Music2 className="text-indigo-400" size={32} />
                     </div>
                 </div>
-                <div className="text-center space-y-2">
-                    <h2 className="text-3xl font-bold text-white">Synthesizing Visuals</h2>
-                    <p className="text-zinc-400">AI is analyzing {audioFile?.name || 'audio'} frequency & mood...</p>
+                <div className="text-center space-y-3">
+                    <h2 className="text-2xl font-bold text-white tracking-tight">Processing Audio</h2>
+                    <p className="text-zinc-500 text-sm font-mono">Analyzing frequencies & extracting mood...</p>
                 </div>
             </div>
         )}

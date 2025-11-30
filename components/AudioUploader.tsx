@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { Upload, Music, FileAudio, ArrowRight } from 'lucide-react';
 
@@ -35,17 +34,17 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto">
+    <div className="w-full">
       <div
         onDrop={handleDrop}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         className={`
             relative group cursor-pointer transition-all duration-500 ease-out
-            border border-dashed rounded-3xl p-12 text-center overflow-hidden
+            border border-dashed rounded-2xl p-10 text-center overflow-hidden backdrop-blur-sm
             ${isDragging 
-                ? 'border-indigo-500 bg-indigo-500/10 scale-105 shadow-[0_0_40px_rgba(99,102,241,0.2)]' 
-                : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'}
+                ? 'border-indigo-500/50 bg-indigo-500/10 scale-[1.02] shadow-2xl shadow-indigo-500/20' 
+                : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/20'}
         `}
       >
         <input
@@ -57,37 +56,37 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onFileSelected }) 
         />
         
         <div className="relative z-10 flex flex-col items-center">
-            {/* Animated Icon */}
+            {/* Icon */}
             <div className={`
-                w-20 h-20 rounded-2xl flex items-center justify-center mb-8 transition-all duration-500
-                ${isDragging ? 'bg-indigo-500 rotate-12 scale-110' : 'bg-gradient-to-br from-indigo-500 to-purple-600 group-hover:scale-110 shadow-lg shadow-purple-900/30'}
+                w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all duration-500 shadow-xl
+                ${isDragging ? 'bg-indigo-500 scale-110 rotate-6' : 'bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/5 group-hover:scale-110 group-hover:border-indigo-500/50'}
             `}>
-                <Music size={32} className="text-white" />
+                <Music size={24} className={`${isDragging ? 'text-white' : 'text-zinc-400 group-hover:text-indigo-400'} transition-colors duration-300`} />
             </div>
 
-            <h3 className="text-3xl font-bold text-white mb-3 tracking-tight">Upload Track</h3>
-            <p className="text-zinc-400 mb-8 max-w-xs mx-auto leading-relaxed">
-              Drag & drop your audio file here, or click to browse your library.
+            <h3 className="text-xl font-semibold text-white mb-2 tracking-tight">Upload Track</h3>
+            <p className="text-zinc-500 text-sm mb-6 max-w-[200px] mx-auto leading-relaxed">
+              Drag & drop audio or click to browse files
             </p>
 
-            <div className="flex flex-wrap justify-center gap-3">
-                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 text-xs text-zinc-500 font-medium">
-                    <FileAudio size={12} /> MP3, WAV, FLAC
+            <div className="flex flex-wrap justify-center gap-2 mb-2">
+                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/5 border border-white/5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+                    <FileAudio size={10} /> MP3 / WAV
                  </div>
-                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 text-xs text-zinc-500 font-medium">
-                    <Upload size={12} /> Max 100MB
+                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/5 border border-white/5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+                    <Upload size={10} /> 100MB Limit
                  </div>
             </div>
             
-            <div className="mt-8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
-                 <span className="text-indigo-400 font-semibold flex items-center gap-2 text-sm">
-                    Select File <ArrowRight size={14} />
+            <div className="h-6 mt-4 flex items-center justify-center">
+                 <span className="text-indigo-400 font-medium text-xs flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+                    Select from computer <ArrowRight size={12} />
                  </span>
             </div>
         </div>
 
-        {/* Background Glow */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/5 via-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+        {/* Hover Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
       </div>
     </div>
   );
