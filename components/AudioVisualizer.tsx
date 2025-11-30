@@ -123,12 +123,16 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => 
 // --- PARTICLE CLASS ---
 class Particle {
   x: number; y: number; vx: number; vy: number; size: number; color: string; life: number; maxLife: number;
+  sway: number; swaySpeed: number; rotation: number;
   
   constructor(w: number, h: number, color: string, speed: number, scale: number, direction: 'outwards' | 'up' | 'down' | 'random' = 'outwards') {
     this.life = Math.random() * 100 + 60;
     this.maxLife = this.life;
     this.color = color;
     this.size = (Math.random() * 4 + 1) * scale;
+    this.sway = Math.random() * Math.PI * 2;
+    this.swaySpeed = (Math.random() * 0.05 + 0.02);
+    this.rotation = Math.random() * Math.PI * 2;
 
     const baseSpeed = speed * scale;
 
@@ -136,15 +140,15 @@ class Particle {
         // SNOW: Top edge
         this.x = Math.random() * w;
         this.y = -20;
-        this.vx = (Math.random() - 0.5) * baseSpeed * 0.5;
-        this.vy = (Math.random() * baseSpeed * 0.5) + 1; // Always down
+        this.vx = (Math.random() - 0.5) * baseSpeed * 0.2; // Minor horizontal drift
+        this.vy = (Math.random() * baseSpeed * 0.5) + (baseSpeed * 0.5); // Always down
     } 
     else if (direction === 'up') {
         // BUBBLES: Bottom edge
         this.x = Math.random() * w;
         this.y = h + 20;
-        this.vx = (Math.random() - 0.5) * baseSpeed * 0.5;
-        this.vy = -((Math.random() * baseSpeed * 0.5) + 1); // Always up
+        this.vx = (Math.random() - 0.5) * baseSpeed * 0.2;
+        this.vy = -((Math.random() * baseSpeed * 0.5) + (baseSpeed * 0.5)); // Always up
     } 
     else if (direction === 'random') {
         // FLOATING: Random start
@@ -164,64 +168,97 @@ class Particle {
     }
   }
 
-  update() {
+  update(direction: string) {
+    // Apply sway for directional particles
+    if (direction === 'down' || direction === 'up') {
+        this.x += Math.sin(this.sway) * 0.5;
+        this.sway += this.swaySpeed;
+    }
+
     this.x += this.vx;
     this.y += this.vy;
     this.life--;
-    this.size *= 0.99; // Shrink slightly over time
+    this.rotation += 0.02;
+    this.size *= 0.995; // Shrink slower
   }
 
-  draw(ctx: CanvasRenderingContext2D, style: 'circle' | 'square' | 'triangle' | 'star' | 'heart') {
+  draw(ctx: CanvasRenderingContext2D, style: 'circle' | 'square' | 'triangle' | 'star' | 'heart' | 'snowflake') {
     ctx.save();
     ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
     ctx.fillStyle = this.color;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 2;
+    
+    // Move to particle position for rotation
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+
+    // Draw relative to (0,0)
     ctx.beginPath();
     
     if (style === 'square') {
-        ctx.rect(this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+        ctx.rect(-this.size, -this.size, this.size * 2, this.size * 2);
+        ctx.fill();
     } else if (style === 'triangle') {
-        ctx.moveTo(this.x, this.y - this.size);
-        ctx.lineTo(this.x + this.size, this.y + this.size);
-        ctx.lineTo(this.x - this.size, this.y + this.size);
+        ctx.moveTo(0, -this.size);
+        ctx.lineTo(this.size, this.size);
+        ctx.lineTo(-this.size, this.size);
         ctx.closePath();
+        ctx.fill();
     } else if (style === 'star') {
         const spikes = 5;
         const outerRadius = this.size * 1.5;
         const innerRadius = this.size * 0.7;
         let rot = Math.PI / 2 * 3;
-        let x = this.x;
-        let y = this.y;
         const step = Math.PI / spikes;
 
-        ctx.moveTo(this.x, this.y - outerRadius);
+        ctx.moveTo(0, -outerRadius);
         for (let i = 0; i < spikes; i++) {
-            x = this.x + Math.cos(rot) * outerRadius;
-            y = this.y + Math.sin(rot) * outerRadius;
+            let x = Math.cos(rot) * outerRadius;
+            let y = Math.sin(rot) * outerRadius;
             ctx.lineTo(x, y);
             rot += step;
 
-            x = this.x + Math.cos(rot) * innerRadius;
-            y = this.y + Math.sin(rot) * innerRadius;
+            x = Math.cos(rot) * innerRadius;
+            y = Math.sin(rot) * innerRadius;
             ctx.lineTo(x, y);
             rot += step;
         }
-        ctx.lineTo(this.x, this.y - outerRadius);
+        ctx.lineTo(0, -outerRadius);
         ctx.closePath();
+        ctx.fill();
     } else if (style === 'heart') {
-         const x = this.x;
-         const y = this.y - (this.size * 0.5);
          const size = this.size * 1.5;
-         
-         ctx.moveTo(x, y + size * 0.3);
-         ctx.bezierCurveTo(x, y, x - size, y - size * 0.5, x - size, y - size * 0.2);
-         ctx.bezierCurveTo(x - size, y + size * 0.4, x - size * 0.2, y + size * 0.8, x, y + size);
-         ctx.bezierCurveTo(x + size * 0.2, y + size * 0.8, x + size, y + size * 0.4, x + size, y - size * 0.2);
-         ctx.bezierCurveTo(x + size, y - size * 0.5, x, y, x, y + size * 0.3);
+         ctx.moveTo(0, -size * 0.2); // slight offset adjust
+         // Simplified heart path relative to 0,0
+         ctx.bezierCurveTo(0, -size * 0.5, -size, -size, -size, -size * 0.2);
+         ctx.bezierCurveTo(-size, size * 0.5, 0, size * 0.8, 0, size);
+         ctx.bezierCurveTo(0, size * 0.8, size, size * 0.5, size, -size * 0.2);
+         ctx.bezierCurveTo(size, -size, 0, -size * 0.5, 0, -size * 0.2);
+         ctx.fill();
+    } else if (style === 'snowflake') {
+         // Draw 3 intersecting lines
+         const r = this.size * 1.5;
+         for(let i=0; i<3; i++) {
+             ctx.save();
+             ctx.rotate((Math.PI * i) / 3);
+             ctx.moveTo(-r, 0);
+             ctx.lineTo(r, 0);
+             ctx.stroke();
+             // Little crossbars
+             // ctx.moveTo(r*0.5, -r*0.3); ctx.lineTo(r*0.5, r*0.3);
+             // ctx.moveTo(-r*0.5, -r*0.3); ctx.lineTo(-r*0.5, r*0.3);
+             ctx.restore();
+         }
+         // Center dot
+         ctx.beginPath();
+         ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2);
+         ctx.fill();
     } else {
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+        ctx.fill();
     }
     
-    ctx.fill();
     ctx.restore();
   }
 }
@@ -553,58 +590,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       }
       ctx.restore(); // End BG shake
 
-      // 3. Particles
-      if (cfg.showParticles) {
-          // Determine spawn rate: Beat-based for center burst, Continuous for Ambient/Snow/Rise
-          const isDirectional = ['up', 'down', 'random'].includes(cfg.particleDirection || 'outwards');
-          const shouldSpawn = isDirectional 
-              ? particlesRef.current.length < cfg.particleCount // Fill to max count
-              : (isBeat && particlesRef.current.length < cfg.particleCount); // Burst on beat
-
-          if (shouldSpawn) {
-             const pColor = cfg.rainbowMode 
-                ? `hsl(${Math.random() * 360}, 100%, 60%)`
-                : (Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor);
-             
-             // Spawn fewer particles for continuous modes to avoid stutter, more for burst
-             const batchSize = isDirectional ? 1 : 3;
-
-             for(let i=0; i < batchSize; i++) {
-                 if (particlesRef.current.length < cfg.particleCount) {
-                     particlesRef.current.push(new Particle(w, h, pColor, cfg.particleSpeed, scaleFactor, cfg.particleDirection || 'outwards'));
-                 }
-             }
-          }
-
-          for (let i = particlesRef.current.length - 1; i >= 0; i--) {
-            const p = particlesRef.current[i];
-            p.update();
-            
-            // Wrap around for Snow/Rise/Random to maintain flow, kill for Burst
-            if (isDirectional) {
-                if (p.life <= 0) {
-                     // Respawn
-                     particlesRef.current.splice(i, 1);
-                } else {
-                     // Wrap coordinates
-                     if (p.x < 0) p.x = w;
-                     if (p.x > w) p.x = 0;
-                     if (cfg.particleDirection === 'down' && p.y > h) p.y = -10;
-                     if (cfg.particleDirection === 'up' && p.y < -10) p.y = h + 10;
-                     if (cfg.particleDirection === 'random') {
-                         if (p.y > h) p.y = 0;
-                         if (p.y < 0) p.y = h;
-                     }
-                }
-            } else {
-                if (p.life <= 0) particlesRef.current.splice(i, 1);
-            }
-            
-            p.draw(ctx, cfg.particleStyle || 'circle');
-          }
-      }
-
-      // 4. Spectrum
+      // 3. Spectrum (MOVED BEFORE PARTICLES for Layering)
       if (cfg.showBars) {
         ctx.save();
         ctx.translate(shakeX, shakeY);
@@ -752,7 +738,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
         ctx.restore();
       }
 
-      // 5. Center Image
+      // 4. Center Image (MOVED BEFORE PARTICLES for Layering)
       if (centerImageRef.current && cfg.centerImage) {
           const baseSize = (350 * cfg.centerImageSize) * scaleFactor;
           const pulse = isBeat ? 1.03 : 1.0;
@@ -766,6 +752,59 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           }
           ctx.drawImage(centerImageRef.current, -size/2, -size/2, size, size);
           ctx.restore();
+      }
+
+      // 5. Particles (NOW DRAWN HERE - ON TOP OF SPECTRUM/IMAGE)
+      if (cfg.showParticles) {
+          // Determine spawn rate: Beat-based for center burst, Continuous for Ambient/Snow/Rise
+          const isDirectional = ['up', 'down', 'random'].includes(cfg.particleDirection || 'outwards');
+          const shouldSpawn = isDirectional 
+              ? particlesRef.current.length < cfg.particleCount // Fill to max count
+              : (isBeat && particlesRef.current.length < cfg.particleCount); // Burst on beat
+
+          if (shouldSpawn) {
+             const pColor = cfg.rainbowMode 
+                ? `hsl(${Math.random() * 360}, 100%, 60%)`
+                : (Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor);
+             
+             // Spawn fewer particles for continuous modes to avoid stutter, more for burst
+             const batchSize = isDirectional ? 1 : 3;
+
+             for(let i=0; i < batchSize; i++) {
+                 if (particlesRef.current.length < cfg.particleCount) {
+                     particlesRef.current.push(new Particle(w, h, pColor, cfg.particleSpeed, scaleFactor, cfg.particleDirection || 'outwards'));
+                 }
+             }
+          }
+
+          for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+            const p = particlesRef.current[i];
+            p.update(cfg.particleDirection || 'outwards');
+            
+            // Wrap around for Snow/Rise/Random to maintain flow, kill for Burst
+            if (isDirectional) {
+                if (p.life <= 0) {
+                     // Respawn instead of killing? Or just let it die and new one spawns
+                     // Let's reset life sometimes to keep density high without re-allocation
+                     // But simpler to remove and let spawn logic handle it
+                     particlesRef.current.splice(i, 1);
+                } else {
+                     // Wrap coordinates
+                     if (p.x < 0) p.x = w;
+                     if (p.x > w) p.x = 0;
+                     if (cfg.particleDirection === 'down' && p.y > h) p.y = -10;
+                     if (cfg.particleDirection === 'up' && p.y < -10) p.y = h + 10;
+                     if (cfg.particleDirection === 'random') {
+                         if (p.y > h) p.y = 0;
+                         if (p.y < 0) p.y = h;
+                     }
+                }
+            } else {
+                if (p.life <= 0) particlesRef.current.splice(i, 1);
+            }
+            
+            p.draw(ctx, cfg.particleStyle || 'circle');
+          }
       }
 
       // 6. Text (Title)
@@ -1413,6 +1452,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                             <option value="triangle">Triangle</option>
                                             <option value="star">Star</option>
                                             <option value="heart">Heart</option>
+                                            <option value="snowflake">Snowflake (Detailed)</option>
                                         </select>
                                     </div>
                                 </div>
