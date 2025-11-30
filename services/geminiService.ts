@@ -145,6 +145,7 @@ export const analyzeAudioForVisualizer = async (
     particleCount: 50,
     particleSpeed: 2,
     particleStyle: 'circle',
+    particleDirection: 'random', // Default to ambient/floating like Vizzy
     bloomStrength: 20,
     rotationSpeed: 0.5,
     cinematicBars: false,

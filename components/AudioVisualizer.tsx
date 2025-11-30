@@ -124,24 +124,51 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => 
 class Particle {
   x: number; y: number; vx: number; vy: number; size: number; color: string; life: number; maxLife: number;
   
-  constructor(w: number, h: number, color: string, speed: number, scale: number) {
-    this.x = w / 2;
-    this.y = h / 2;
-    const angle = Math.random() * Math.PI * 2;
-    const velocity = ((Math.random() * speed) + 0.5) * scale;
-    this.vx = Math.cos(angle) * velocity;
-    this.vy = Math.sin(angle) * velocity;
-    this.size = (Math.random() * 4 + 1) * scale;
+  constructor(w: number, h: number, color: string, speed: number, scale: number, direction: 'outwards' | 'up' | 'down' | 'random' = 'outwards') {
+    this.life = Math.random() * 100 + 60;
+    this.maxLife = this.life;
     this.color = color;
-    this.maxLife = Math.random() * 60 + 40;
-    this.life = this.maxLife;
+    this.size = (Math.random() * 4 + 1) * scale;
+
+    const baseSpeed = speed * scale;
+
+    if (direction === 'down') {
+        // SNOW: Top edge
+        this.x = Math.random() * w;
+        this.y = -20;
+        this.vx = (Math.random() - 0.5) * baseSpeed * 0.5;
+        this.vy = (Math.random() * baseSpeed * 0.5) + 1; // Always down
+    } 
+    else if (direction === 'up') {
+        // BUBBLES: Bottom edge
+        this.x = Math.random() * w;
+        this.y = h + 20;
+        this.vx = (Math.random() - 0.5) * baseSpeed * 0.5;
+        this.vy = -((Math.random() * baseSpeed * 0.5) + 1); // Always up
+    } 
+    else if (direction === 'random') {
+        // FLOATING: Random start
+        this.x = Math.random() * w;
+        this.y = Math.random() * h;
+        this.vx = (Math.random() - 0.5) * baseSpeed * 0.5;
+        this.vy = (Math.random() - 0.5) * baseSpeed * 0.5;
+    } 
+    else {
+        // OUTWARDS (Default): Center
+        this.x = w / 2;
+        this.y = h / 2;
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = ((Math.random() * speed) + 0.5) * scale;
+        this.vx = Math.cos(angle) * velocity;
+        this.vy = Math.sin(angle) * velocity;
+    }
   }
 
   update() {
     this.x += this.vx;
     this.y += this.vy;
     this.life--;
-    this.size *= 0.98; // Shrink over time
+    this.size *= 0.99; // Shrink slightly over time
   }
 
   draw(ctx: CanvasRenderingContext2D, style: 'circle' | 'square' | 'triangle' | 'star' | 'heart') {
@@ -158,7 +185,6 @@ class Particle {
         ctx.lineTo(this.x - this.size, this.y + this.size);
         ctx.closePath();
     } else if (style === 'star') {
-        // Simple star
         const spikes = 5;
         const outerRadius = this.size * 1.5;
         const innerRadius = this.size * 0.7;
@@ -182,9 +208,8 @@ class Particle {
         ctx.lineTo(this.x, this.y - outerRadius);
         ctx.closePath();
     } else if (style === 'heart') {
-         // Heart shape approximate
          const x = this.x;
-         const y = this.y - (this.size * 0.5); // Shift up slightly
+         const y = this.y - (this.size * 0.5);
          const size = this.size * 1.5;
          
          ctx.moveTo(x, y + size * 0.3);
@@ -193,7 +218,6 @@ class Particle {
          ctx.bezierCurveTo(x + size * 0.2, y + size * 0.8, x + size, y + size * 0.4, x + size, y - size * 0.2);
          ctx.bezierCurveTo(x + size, y - size * 0.5, x, y, x, y + size * 0.3);
     } else {
-        // Circle default
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
     }
     
@@ -531,19 +555,52 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
 
       // 3. Particles
       if (cfg.showParticles) {
-          if (isBeat && particlesRef.current.length < cfg.particleCount) {
+          // Determine spawn rate: Beat-based for center burst, Continuous for Ambient/Snow/Rise
+          const isDirectional = ['up', 'down', 'random'].includes(cfg.particleDirection || 'outwards');
+          const shouldSpawn = isDirectional 
+              ? particlesRef.current.length < cfg.particleCount // Fill to max count
+              : (isBeat && particlesRef.current.length < cfg.particleCount); // Burst on beat
+
+          if (shouldSpawn) {
              const pColor = cfg.rainbowMode 
                 ? `hsl(${Math.random() * 360}, 100%, 60%)`
                 : (Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor);
-             for(let i=0; i<3; i++) {
-                 particlesRef.current.push(new Particle(w, h, pColor, cfg.particleSpeed, scaleFactor));
+             
+             // Spawn fewer particles for continuous modes to avoid stutter, more for burst
+             const batchSize = isDirectional ? 1 : 3;
+
+             for(let i=0; i < batchSize; i++) {
+                 if (particlesRef.current.length < cfg.particleCount) {
+                     particlesRef.current.push(new Particle(w, h, pColor, cfg.particleSpeed, scaleFactor, cfg.particleDirection || 'outwards'));
+                 }
              }
           }
+
           for (let i = particlesRef.current.length - 1; i >= 0; i--) {
             const p = particlesRef.current[i];
             p.update();
+            
+            // Wrap around for Snow/Rise/Random to maintain flow, kill for Burst
+            if (isDirectional) {
+                if (p.life <= 0) {
+                     // Respawn
+                     particlesRef.current.splice(i, 1);
+                } else {
+                     // Wrap coordinates
+                     if (p.x < 0) p.x = w;
+                     if (p.x > w) p.x = 0;
+                     if (cfg.particleDirection === 'down' && p.y > h) p.y = -10;
+                     if (cfg.particleDirection === 'up' && p.y < -10) p.y = h + 10;
+                     if (cfg.particleDirection === 'random') {
+                         if (p.y > h) p.y = 0;
+                         if (p.y < 0) p.y = h;
+                     }
+                }
+            } else {
+                if (p.life <= 0) particlesRef.current.splice(i, 1);
+            }
+            
             p.draw(ctx, cfg.particleStyle || 'circle');
-            if (p.life <= 0) particlesRef.current.splice(i, 1);
           }
       }
 
@@ -1328,20 +1385,38 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     <span className="text-zinc-300">Enable Emitter</span>
                                     <input type="checkbox" checked={config.showParticles} onChange={e => setConfig({...config, showParticles: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
                                 </div>
-                                <div className="mb-4">
-                                    <label className="text-xs text-zinc-300 font-medium mb-2 block">Shape Appearance</label>
-                                    <select 
-                                        value={config.particleStyle || 'circle'} 
-                                        onChange={e => setConfig({...config, particleStyle: e.target.value as any})}
-                                        className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="circle">Circle</option>
-                                        <option value="square">Square</option>
-                                        <option value="triangle">Triangle</option>
-                                        <option value="star">Star</option>
-                                        <option value="heart">Heart</option>
-                                    </select>
+                                
+                                <div className="mb-4 space-y-3">
+                                    <div>
+                                        <label className="text-xs text-zinc-300 font-medium mb-2 block">Movement</label>
+                                        <select 
+                                            value={config.particleDirection || 'outwards'} 
+                                            onChange={e => setConfig({...config, particleDirection: e.target.value as any})}
+                                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
+                                        >
+                                            <option value="outwards">Center Burst (Reactive)</option>
+                                            <option value="down">Snow Fall (Continuous)</option>
+                                            <option value="up">Rising Bubbles (Continuous)</option>
+                                            <option value="random">Floating Dust (Ambient)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="text-xs text-zinc-300 font-medium mb-2 block">Shape Appearance</label>
+                                        <select 
+                                            value={config.particleStyle || 'circle'} 
+                                            onChange={e => setConfig({...config, particleStyle: e.target.value as any})}
+                                            className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
+                                        >
+                                            <option value="circle">Circle</option>
+                                            <option value="square">Square</option>
+                                            <option value="triangle">Triangle</option>
+                                            <option value="star">Star</option>
+                                            <option value="heart">Heart</option>
+                                        </select>
+                                    </div>
                                 </div>
+
                                 <Slider label="Max Particles" min={10} max={300} step={10} value={config.particleCount} onChange={(v) => setConfig({...config, particleCount: v})} />
                                 <Slider label="Velocity" min={0.5} max={5} step={0.5} value={config.particleSpeed} onChange={(v) => setConfig({...config, particleSpeed: v})} />
                              </ControlGroup>

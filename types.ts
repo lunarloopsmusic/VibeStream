@@ -93,4 +93,5 @@ export interface VisualizerConfig {
   particleCount: number;
   particleSpeed: number;
   particleStyle: 'circle' | 'square' | 'triangle' | 'star' | 'heart';
+  particleDirection: 'outwards' | 'up' | 'down' | 'random'; // New: Snow/Rise/Ambient
 }
