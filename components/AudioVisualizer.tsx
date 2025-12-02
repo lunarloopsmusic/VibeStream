@@ -126,8 +126,6 @@ const parseLRC = (lrc: string): { content: string, syncData: LyricLine[] } => {
     const lines = lrc.split('\n');
     const syncData: LyricLine[] = [];
     const textLines: string[] = [];
-    
-    // Regex for [mm:ss.xx] or [mm:ss:xx]
     const timeRegex = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/;
     
     lines.forEach(line => {
@@ -136,69 +134,47 @@ const parseLRC = (lrc: string): { content: string, syncData: LyricLine[] } => {
             const min = parseInt(match[1]);
             const sec = parseInt(match[2]);
             const ms = parseInt(match[3]);
-            
             let timeInSec = min * 60 + sec;
-            
-            // Normalize MS: if length is 2 (e.g. .50), it usually means centiseconds (500ms)
-            // If length is 3 (e.g. .500), it is milliseconds.
-            if (match[3].length === 3) {
-                timeInSec += ms / 1000;
-            } else {
-                timeInSec += ms / 100;
-            }
+            if (match[3].length === 3) timeInSec += ms / 1000;
+            else timeInSec += ms / 100;
 
             const cleanText = line.replace(/\[.*?\]/g, '').trim();
-            // Only add if there is text (ignores blank timestamp lines sometimes used for spacing)
             if (cleanText) {
                 syncData.push({ time: timeInSec, text: cleanText });
                 textLines.push(cleanText);
             }
         } else {
-             // Plain text line
              const cleanText = line.trim();
-             // Skip metadata tags like [ar: Artist]
              if (cleanText && !cleanText.startsWith('[') && !cleanText.startsWith('id:')) {
                  textLines.push(cleanText);
              }
         }
     });
 
-    // If parsing failed to find stamps, return original as content with empty sync
     if (syncData.length === 0) return { content: lrc, syncData: [] };
-
     return { content: textLines.join('\n'), syncData };
 };
 
 const parseSRT = (srt: string): { content: string, syncData: LyricLine[] } => {
-    // SRT blocks are usually separated by empty lines. Normalize line endings first.
     const blocks = srt.replace(/\r\n/g, '\n').trim().split(/\n\s*\n/);
     const syncData: LyricLine[] = [];
     const textLines: string[] = [];
-
-    // Regex for time line: 00:00:20,000 --> 00:00:24,400
-    // Matches: HH:MM:SS,mmm
     const timeRegex = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})/;
 
     blocks.forEach(block => {
         const lines = block.split('\n').map(l => l.trim());
-        // Find the line with the timestamp arrow
         const timeIndex = lines.findIndex(l => l.includes('-->'));
         
         if (timeIndex !== -1) {
             const timeLine = lines[timeIndex];
-            const match = timeLine.match(timeRegex); // Matches start time
-            
+            const match = timeLine.match(timeRegex);
             if (match) {
                 const hrs = parseInt(match[1]);
                 const min = parseInt(match[2]);
                 const sec = parseInt(match[3]);
                 const ms = parseInt(match[4]);
-                
                 const startTime = (hrs * 3600) + (min * 60) + sec + (ms / 1000);
-                
-                // Text is everything after the time line
                 const textContent = lines.slice(timeIndex + 1).join(' ').replace(/<[^>]*>/g, '').trim();
-                
                 if (textContent) {
                     syncData.push({ time: startTime, text: textContent });
                     textLines.push(textContent);
@@ -208,7 +184,6 @@ const parseSRT = (srt: string): { content: string, syncData: LyricLine[] } => {
     });
 
     if (syncData.length === 0) return { content: srt, syncData: [] };
-    
     return { content: textLines.join('\n'), syncData };
 };
 
@@ -229,28 +204,24 @@ class Particle {
     const baseSpeed = speed * scale;
 
     if (direction === 'down') {
-        // SNOW: Top edge
         this.x = Math.random() * w;
         this.y = -20;
-        this.vx = (Math.random() - 0.5) * baseSpeed * 0.2; // Minor horizontal drift
-        this.vy = (Math.random() * baseSpeed * 0.5) + (baseSpeed * 0.5); // Always down
+        this.vx = (Math.random() - 0.5) * baseSpeed * 0.2; 
+        this.vy = (Math.random() * baseSpeed * 0.5) + (baseSpeed * 0.5); 
     } 
     else if (direction === 'up') {
-        // BUBBLES: Bottom edge
         this.x = Math.random() * w;
         this.y = h + 20;
         this.vx = (Math.random() - 0.5) * baseSpeed * 0.2;
-        this.vy = -((Math.random() * baseSpeed * 0.5) + (baseSpeed * 0.5)); // Always up
+        this.vy = -((Math.random() * baseSpeed * 0.5) + (baseSpeed * 0.5)); 
     } 
     else if (direction === 'random') {
-        // FLOATING: Random start
         this.x = Math.random() * w;
         this.y = Math.random() * h;
         this.vx = (Math.random() - 0.5) * baseSpeed * 0.5;
         this.vy = (Math.random() - 0.5) * baseSpeed * 0.5;
     } 
     else {
-        // OUTWARDS (Default): Center
         this.x = w / 2;
         this.y = h / 2;
         const angle = Math.random() * Math.PI * 2;
@@ -261,17 +232,15 @@ class Particle {
   }
 
   update(direction: string) {
-    // Apply sway for directional particles
     if (direction === 'down' || direction === 'up') {
         this.x += Math.sin(this.sway) * 0.5;
         this.sway += this.swaySpeed;
     }
-
     this.x += this.vx;
     this.y += this.vy;
     this.life--;
     this.rotation += 0.02;
-    this.size *= 0.995; // Shrink slower
+    this.size *= 0.995; 
   }
 
   draw(ctx: CanvasRenderingContext2D, style: 'circle' | 'square' | 'triangle' | 'star' | 'heart' | 'snowflake') {
@@ -280,12 +249,8 @@ class Particle {
     ctx.fillStyle = this.color;
     ctx.strokeStyle = this.color;
     ctx.lineWidth = 2;
-    
-    // Move to particle position for rotation
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
-
-    // Draw relative to (0,0)
     ctx.beginPath();
     
     if (style === 'square') {
@@ -303,14 +268,12 @@ class Particle {
         const innerRadius = this.size * 0.7;
         let rot = Math.PI / 2 * 3;
         const step = Math.PI / spikes;
-
         ctx.moveTo(0, -outerRadius);
         for (let i = 0; i < spikes; i++) {
             let x = Math.cos(rot) * outerRadius;
             let y = Math.sin(rot) * outerRadius;
             ctx.lineTo(x, y);
             rot += step;
-
             x = Math.cos(rot) * innerRadius;
             y = Math.sin(rot) * innerRadius;
             ctx.lineTo(x, y);
@@ -321,15 +284,13 @@ class Particle {
         ctx.fill();
     } else if (style === 'heart') {
          const size = this.size * 1.5;
-         ctx.moveTo(0, -size * 0.2); // slight offset adjust
-         // Simplified heart path relative to 0,0
+         ctx.moveTo(0, -size * 0.2); 
          ctx.bezierCurveTo(0, -size * 0.5, -size, -size, -size, -size * 0.2);
          ctx.bezierCurveTo(-size, size * 0.5, 0, size * 0.8, 0, size);
          ctx.bezierCurveTo(0, size * 0.8, size, size * 0.5, size, -size * 0.2);
          ctx.bezierCurveTo(size, -size, 0, -size * 0.5, 0, -size * 0.2);
          ctx.fill();
     } else if (style === 'snowflake') {
-         // Draw 3 intersecting lines
          const r = this.size * 1.5;
          for(let i=0; i<3; i++) {
              ctx.save();
@@ -337,12 +298,8 @@ class Particle {
              ctx.moveTo(-r, 0);
              ctx.lineTo(r, 0);
              ctx.stroke();
-             // Little crossbars
-             // ctx.moveTo(r*0.5, -r*0.3); ctx.lineTo(r*0.5, r*0.3);
-             // ctx.moveTo(-r*0.5, -r*0.3); ctx.lineTo(-r*0.5, r*0.3);
              ctx.restore();
          }
-         // Center dot
          ctx.beginPath();
          ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2);
          ctx.fill();
@@ -350,13 +307,11 @@ class Particle {
         ctx.arc(0, 0, this.size, 0, Math.PI * 2);
         ctx.fill();
     }
-    
     ctx.restore();
   }
 }
 
 export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mimeType, config: initialConfig, onBack }) => {
-  // State
   const [config, setConfig] = useState<VisualizerConfig>(initialConfig);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -371,18 +326,15 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [fileSizeWarning, setFileSizeWarning] = useState<boolean>(false);
   
-  // Sync States
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncIndex, setSyncIndex] = useState(0);
 
-  // Export Settings
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
       resolution: '1080p',
       fps: 60,
       quality: 'high'
   });
 
-  // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const animationRef = useRef<number>(0);
@@ -393,54 +345,36 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   
-  // Image Refs
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const centerImageRef = useRef<HTMLImageElement | null>(null);
   
-  // Keep config current for render loop
   const configRef = useRef(config);
   useEffect(() => { configRef.current = config; }, [config]);
   const exportSettingsRef = useRef(exportSettings);
   useEffect(() => { exportSettingsRef.current = exportSettings; }, [exportSettings]);
   
-  // Keep Sync state current
   const isSyncingRef = useRef(isSyncing);
   useEffect(() => { isSyncingRef.current = isSyncing; }, [isSyncing]);
   const syncIndexRef = useRef(syncIndex);
   useEffect(() => { syncIndexRef.current = syncIndex; }, [syncIndex]);
 
-  // Particles Ref
   const particlesRef = useRef<Particle[]>([]);
   const timeRef = useRef<number>(0);
-
-  // --- ACTIONS ---
 
   const handleLyricsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
         const text = event.target?.result as string;
         if (!text) return;
-
         const name = file.name.toLowerCase();
         let parsedResult: { content: string, syncData: LyricLine[] } = { content: text, syncData: [] };
-
-        if (name.endsWith('.lrc')) {
-             parsedResult = parseLRC(text);
-        } else if (name.endsWith('.srt')) {
-             parsedResult = parseSRT(text);
-        }
-
+        if (name.endsWith('.lrc')) parsedResult = parseLRC(text);
+        else if (name.endsWith('.srt')) parsedResult = parseSRT(text);
         setConfig(prev => ({
             ...prev,
-            lyrics: {
-                ...prev.lyrics,
-                content: parsedResult.content,
-                syncData: parsedResult.syncData,
-                enabled: true
-            }
+            lyrics: { ...prev.lyrics, content: parsedResult.content, syncData: parsedResult.syncData, enabled: true }
         }));
     };
     reader.readAsText(file);
@@ -450,57 +384,35 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
     if (isGeneratingLyrics) return;
     setIsGeneratingLyrics(true);
     setFileSizeWarning(false);
-    
     try {
         const response = await fetch(audioUrl);
         let blob = await response.blob();
-        
-        // Safety slice for API payload limits.
         const MAX_SIZE = 8 * 1024 * 1024; 
-        
         if (blob.size > MAX_SIZE) {
-            console.warn("Audio too large. Slicing first 8MB for analysis.");
-            if (mimeType.includes('wav')) {
-                setFileSizeWarning(true);
-            }
+            if (mimeType.includes('wav')) setFileSizeWarning(true);
             blob = blob.slice(0, MAX_SIZE, mimeType || blob.type);
         }
-
         const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
                  const res = reader.result as string;
-                 if (res) {
-                    const parts = res.split(',');
-                    if (parts.length > 1) resolve(parts[1]);
-                    else reject("Invalid base64 encoding");
-                 }
+                 if (res) resolve(res.split(',')[1]);
                  else reject("File reading failed");
             };
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
-
         const finalMimeType = blob.type || mimeType || 'audio/mp3';
-        
-        // This now returns { content, syncData }
         const result = await generateLyrics(base64, finalMimeType);
-        
         if (result && result.content.length > 0) {
             setConfig(prev => ({
                 ...prev,
-                lyrics: {
-                    ...prev.lyrics,
-                    enabled: true,
-                    content: result.content,
-                    syncData: result.syncData // Auto-Sync Data
-                }
+                lyrics: { ...prev.lyrics, enabled: true, content: result.content, syncData: result.syncData }
             }));
         } else {
              alert("AI generated empty lyrics. Is this an instrumental track?");
         }
     } catch (e) {
-        console.error("Lyrics Error:", e);
         alert("Could not generate lyrics. The file might be too large or valid audio data wasn't detected.");
     } finally {
         setIsGeneratingLyrics(false);
@@ -512,14 +424,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       audioRef.current.currentTime = 0;
       setSyncIndex(0);
       setIsSyncing(true);
-      setConfig(prev => ({
-          ...prev,
-          lyrics: {
-              ...prev.lyrics,
-              syncData: [], // Clear previous sync
-              enabled: true
-          }
-      }));
+      setConfig(prev => ({ ...prev, lyrics: { ...prev.lyrics, syncData: [], enabled: true } }));
       if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
       audioRef.current.play();
       setIsPlaying(true);
@@ -533,28 +438,18 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
 
   const recordSyncPoint = () => {
       if (!isSyncing || !audioRef.current) return;
-      
       const time = audioRef.current.currentTime;
       const lines = config.lyrics.content.split('\n').filter(l => l.trim() !== '');
       const currentText = lines[syncIndex];
-
       if (currentText) {
           const newPoint: LyricLine = { time, text: currentText };
-          setConfig(prev => ({
-              ...prev,
-              lyrics: {
-                  ...prev.lyrics,
-                  syncData: [...(prev.lyrics.syncData || []), newPoint]
-              }
-          }));
+          setConfig(prev => ({ ...prev, lyrics: { ...prev.lyrics, syncData: [...(prev.lyrics.syncData || []), newPoint] } }));
           setSyncIndex(prev => prev + 1);
       } else {
-          // Finished all lines
           stopSyncSession();
       }
   };
 
-  // Keyboard listener for Sync
   useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
           if (isSyncingRef.current && (e.code === 'Space' || e.code === 'Enter')) {
@@ -566,8 +461,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- INITIALIZATION ---
-  
   useEffect(() => {
     if (config.backgroundImage) {
         const img = new Image();
@@ -598,25 +491,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       if (audioRef.current) {
         const source = ctx.createMediaElementSource(audioRef.current);
         const streamDest = ctx.createMediaStreamDestination();
-        
         source.connect(analyser);
         analyser.connect(ctx.destination);
         source.connect(streamDest); 
-
         audioContextRef.current = ctx;
         analyserRef.current = analyser;
         sourceRef.current = source;
         streamDestRef.current = streamDest;
       }
     };
-
     const handleInteraction = () => {
         initAudio();
         if (audioContextRef.current?.state === 'suspended') audioContextRef.current.resume();
     };
-
     document.addEventListener('click', handleInteraction, { once: true });
-    
     return () => {
         document.removeEventListener('click', handleInteraction);
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
@@ -627,7 +515,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   useEffect(() => {
       if (analyserRef.current) analyserRef.current.smoothingTimeConstant = config.smoothing;
   }, [config.smoothing]);
-
 
   // --- RENDER LOOP ---
   useEffect(() => {
@@ -641,35 +528,22 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
     const render = () => {
       if (!ctx || !canvas) return;
       const cfg = configRef.current;
-      
       if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
           canvas.width = BASE_WIDTH;
           canvas.height = BASE_HEIGHT;
       }
-      
       const w = canvas.width;
       const h = canvas.height;
       const scaleFactor = w / BASE_WIDTH; 
-      
       let cx = w / 2;
       let cy = h / 2;
-
-      // Update time manually if recording to ensure smoothness, otherwise rely on audio
-      let currentPlayTime = 0;
-      let currentDuration = 1;
-      
-      if (audioRef.current) {
-         currentPlayTime = audioRef.current.currentTime;
-         currentDuration = audioRef.current.duration || 1;
-      }
-
+      let currentPlayTime = audioRef.current ? audioRef.current.currentTime : 0;
+      let currentDuration = audioRef.current?.duration || 1;
       timeRef.current += 0.01 * (cfg.colorCycleSpeed || 0.5);
 
-      // Audio Data
       let dataArray = new Uint8Array(0);
       let isBeat = false;
       let bassAvg = 0;
-      
       if (analyserRef.current) {
           const bufferLength = analyserRef.current.frequencyBinCount;
           dataArray = new Uint8Array(bufferLength);
@@ -688,13 +562,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           shakeY = (Math.random() - 0.5) * shakeAmt;
       }
 
-      // 1. Background
       ctx.fillStyle = cfg.backgroundColor;
       ctx.fillRect(0, 0, w, h);
       ctx.save();
       ctx.translate(shakeX, shakeY);
 
-      // 2. BG Image
       if (bgImageRef.current && cfg.backgroundImage) {
         ctx.save();
         if (cfg.bgImageBlur > 0) ctx.filter = `blur(${cfg.bgImageBlur * scaleFactor}px)`;
@@ -711,18 +583,15 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
         ctx.drawImage(img, dx, dy, dw, dh);
         ctx.restore();
       }
-      ctx.restore(); // End BG shake
+      ctx.restore(); 
 
-      // 3. Spectrum
       if (cfg.showBars) {
         ctx.save();
         ctx.translate(shakeX, shakeY);
         ctx.shadowBlur = cfg.bloomStrength * scaleFactor;
         ctx.shadowColor = cfg.rainbowMode ? 'white' : cfg.primaryColor;
         rotationAngle += cfg.rotationSpeed * 0.005;
-
         const radius = (300 * (cfg.spectrumScale || 1.0)) * scaleFactor;
-        
         let fillStyle: string | CanvasGradient = cfg.primaryColor;
         if (!cfg.rainbowMode && cfg.colorMode === 'gradient') {
             const grad = ctx.createLinearGradient(0, h/2 - 200, 0, h/2 + 200);
@@ -730,28 +599,55 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             grad.addColorStop(1, cfg.secondaryColor);
             fillStyle = grad;
         }
-
         const barsToRender = Math.min(cfg.barCount, dataArray.length || 64);
         const scaledBarWidth = cfg.barWidth * scaleFactor;
-        
+        const step = Math.floor((dataArray.length || 64) / barsToRender);
+
         if (cfg.mode === 'circular') {
             ctx.translate(cx, cy);
             ctx.rotate(rotationAngle);
             if (isBeat) ctx.scale(1.02, 1.02);
-            const step = Math.floor((dataArray.length || 64) / barsToRender);
             
-            if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
+            if (cfg.spectrumStyle === 'blocks') {
+                for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const blockCount = 8;
+                    const activeBlocks = Math.ceil((val / 255) * blockCount);
+                    const angle = (i / barsToRender) * Math.PI * 2;
+                    ctx.save();
+                    ctx.rotate(angle);
+                    for (let j = 0; j < activeBlocks; j++) {
+                        const dist = radius + (j * (scaledBarWidth * 1.5));
+                        if (cfg.rainbowMode) ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                        else ctx.fillStyle = cfg.colorMode === 'solid' ? cfg.primaryColor : fillStyle;
+                        
+                        ctx.fillRect(dist, -scaledBarWidth/2, scaledBarWidth, scaledBarWidth);
+                    }
+                    ctx.restore();
+                }
+            } else if (cfg.spectrumStyle === 'bubbles') {
+                for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const bubbleSize = (val / 255) * 30 * cfg.barHeightScale * scaleFactor;
+                    const angle = (i / barsToRender) * Math.PI * 2;
+                    const x = Math.cos(angle) * (radius + bubbleSize + 10);
+                    const y = Math.sin(angle) * (radius + bubbleSize + 10);
+                    ctx.beginPath();
+                    ctx.arc(x, y, Math.max(2, bubbleSize), 0, Math.PI*2);
+                    if (cfg.rainbowMode) ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    else ctx.fillStyle = fillStyle;
+                    ctx.fill();
+                }
+            } else if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
                 ctx.beginPath();
                 ctx.strokeStyle = fillStyle;
                 ctx.fillStyle = fillStyle;
                 ctx.lineWidth = scaledBarWidth;
-                
                 for (let i = 0; i <= barsToRender; i++) {
                     const index = i === barsToRender ? 0 : i; 
                     const val = dataArray.length ? dataArray[index * step] : 10;
                     const barH = (val * cfg.sensitivity * cfg.barHeightScale * 0.5 * scaleFactor);
                     const angle = (i / barsToRender) * Math.PI * 2;
-                    
                     const r = radius + barH;
                     const x = Math.cos(angle) * r;
                     const y = Math.sin(angle) * r;
@@ -781,14 +677,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                     const y1 = Math.sin(angle) * radius;
                     const x2 = Math.cos(angle) * (radius + barH);
                     const y2 = Math.sin(angle) * (radius + barH);
-
-                    if (cfg.rainbowMode) {
-                        ctx.strokeStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
-                    } else {
-                        ctx.strokeStyle = cfg.colorMode === 'solid' 
-                         ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor)
-                         : fillStyle;
-                    }
+                    if (cfg.rainbowMode) ctx.strokeStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    else ctx.strokeStyle = cfg.colorMode === 'solid' ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor) : fillStyle;
                     ctx.lineWidth = scaledBarWidth;
                     ctx.lineCap = cfg.barRoundness > 0.5 ? 'round' : 'butt';
                     ctx.beginPath();
@@ -799,14 +689,81 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             }
         } else {
             // LINEAR
-            const barW = w / barsToRender;
-            const step = Math.floor((dataArray.length || 64) / barsToRender);
+            if (cfg.spectrumStyle === 'mirror-wave') {
+                ctx.beginPath();
+                ctx.lineWidth = scaledBarWidth;
+                const mid = barsToRender / 2;
+                for (let i = 0; i <= barsToRender; i++) {
+                    const index = Math.min(Math.floor(Math.abs(i - mid)), barsToRender/2 - 1) * 2; // Symmetric index
+                    const val = dataArray.length ? dataArray[index * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * 2 * (cfg.spectrumScale || 1.0) * scaleFactor);
+                    const x = (i / barsToRender) * w;
+                    const y = (h / 2) - barH + (val > 150 ? (Math.random()*5) : 0);
+                    if (i === 0) ctx.moveTo(x, h/2);
+                    ctx.lineTo(x, y);
+                }
+                // Mirror bottom
+                for (let i = barsToRender; i >= 0; i--) {
+                    const index = Math.min(Math.floor(Math.abs(i - mid)), barsToRender/2 - 1) * 2;
+                    const val = dataArray.length ? dataArray[index * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * 2 * (cfg.spectrumScale || 1.0) * scaleFactor);
+                    const x = (i / barsToRender) * w;
+                    const y = (h / 2) + barH;
+                    ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.globalAlpha = cfg.fillOpacity || 0.6;
+                if (cfg.rainbowMode) ctx.fillStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
+                else ctx.fillStyle = fillStyle;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+                ctx.stroke();
 
-            if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
+            } else if (cfg.spectrumStyle === 'blocks') {
+                const barW = w / barsToRender;
+                for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const blockCount = 12;
+                    const activeBlocks = Math.ceil((val / 255) * blockCount);
+                    const x = i * barW;
+                    for(let j=0; j<activeBlocks; j++) {
+                        const blockH = (h * 0.4) / blockCount;
+                        const y = h - (j * (blockH + 4));
+                        if (cfg.rainbowMode) ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                        else ctx.fillStyle = cfg.colorMode === 'solid' ? cfg.primaryColor : fillStyle;
+                        
+                        if (cfg.mirror) {
+                            const ym = (h/2) - (j * (blockH + 2));
+                            const ymb = (h/2) + (j * (blockH + 2));
+                            ctx.fillRect(x, ym - blockH, barW - 2, blockH);
+                            ctx.fillRect(x, ymb, barW - 2, blockH);
+                        } else {
+                            ctx.fillRect(x, y - blockH, barW - 2, blockH);
+                        }
+                    }
+                }
+            } else if (cfg.spectrumStyle === 'bubbles') {
+                 const barW = w / barsToRender;
+                 for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const bubbleSize = (val / 255) * barW * 3 * scaleFactor;
+                    const x = (i * barW) + (barW/2);
+                    const y = cfg.mirror ? h/2 : h - 100;
+                    if (val > 20) {
+                        ctx.beginPath();
+                        ctx.arc(x, y - (val * scaleFactor), bubbleSize, 0, Math.PI*2);
+                        if (cfg.mirror) ctx.arc(x, y + (val * scaleFactor), bubbleSize, 0, Math.PI*2);
+                        if (cfg.rainbowMode) ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                        else ctx.fillStyle = fillStyle;
+                        ctx.fill();
+                    }
+                 }
+            } else if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
                  ctx.beginPath();
                  ctx.strokeStyle = fillStyle;
                  ctx.fillStyle = fillStyle;
                  ctx.lineWidth = scaledBarWidth;
+                 const barW = w / barsToRender;
                  for (let i = 0; i <= barsToRender; i++) {
                     const index = Math.min(i, barsToRender - 1);
                     const val = dataArray.length ? dataArray[index * step] : 10;
@@ -829,17 +786,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                      ctx.stroke();
                  }
             } else {
+                // STANDARD BARS
+                const barW = w / barsToRender;
                 for (let i = 0; i < barsToRender; i++) {
                     const val = dataArray.length ? dataArray[i * step] : 10;
                     const barH = (val * cfg.sensitivity * cfg.barHeightScale * 3 * (cfg.spectrumScale || 1.0) * scaleFactor);
                     const x = i * barW;
-                    if (cfg.rainbowMode) {
-                        ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
-                    } else {
-                        ctx.fillStyle = cfg.colorMode === 'solid' 
-                         ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor)
-                         : fillStyle;
-                    }
+                    if (cfg.rainbowMode) ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    else ctx.fillStyle = cfg.colorMode === 'solid' ? (i % 2 === 0 ? cfg.primaryColor : cfg.secondaryColor) : fillStyle;
                     const r = cfg.barRoundness > 0.5 ? Math.min(barW, barH) / 2 : 0;
                     if (cfg.mirror) {
                         const centerOffset = Math.abs((barsToRender/2) - i);
@@ -861,33 +815,24 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
         ctx.restore();
       }
 
-      // 4. Center Asset (Image OR Text)
       const pulse = isBeat ? 1.03 : 1.0;
 
       if (cfg.centerType === 'text') {
-           // LOGO TEXT RENDERING
            ctx.save();
            ctx.translate(cx + shakeX, cy + shakeY);
            ctx.scale(pulse, pulse); 
-           
            const textCfg = cfg.centerTextConfig || { content: 'LOGO', fontSize: 60, color: 'white', fontFamily: 'Inter' };
            const fontSize = textCfg.fontSize * scaleFactor;
-           
            ctx.textAlign = 'center';
            ctx.textBaseline = 'middle';
            ctx.font = `bold ${fontSize}px "${textCfg.fontFamily}"`;
-           
            if (textCfg.glowStrength > 0) {
                 ctx.shadowBlur = textCfg.glowStrength * scaleFactor;
                 ctx.shadowColor = textCfg.glowColor;
            }
-
-           // Handle Multi-line text
            const lines = (textCfg.content || "").split('\n');
            const lineHeight = fontSize * 1.1; 
-           // Calculate start Y to center the block vertically relative to (0,0)
            const startY = -((lines.length - 1) * lineHeight) / 2;
-
            lines.forEach((line, i) => {
                const y = startY + (i * lineHeight);
                if (textCfg.strokeWidth > 0) {
@@ -898,11 +843,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                ctx.fillStyle = textCfg.color;
                ctx.fillText(line, 0, y);
            });
-           
            ctx.restore();
-
       } else if (centerImageRef.current && cfg.centerImage) {
-          // IMAGE RENDERING
           const baseSize = (350 * cfg.centerImageSize) * scaleFactor;
           const size = baseSize * pulse;
           ctx.save();
@@ -916,33 +858,28 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           ctx.restore();
       }
 
-      // 5. Particles
       if (cfg.showParticles) {
           const isDirectional = ['up', 'down', 'random'].includes(cfg.particleDirection || 'outwards');
           const shouldSpawn = isDirectional 
               ? particlesRef.current.length < cfg.particleCount 
               : (isBeat && particlesRef.current.length < cfg.particleCount); 
-
           if (shouldSpawn) {
              const pColor = cfg.rainbowMode 
                 ? `hsl(${Math.random() * 360}, 100%, 60%)`
                 : (Math.random() > 0.5 ? cfg.primaryColor : cfg.secondaryColor);
              const batchSize = isDirectional ? 1 : 3;
-
              for(let i=0; i < batchSize; i++) {
                  if (particlesRef.current.length < cfg.particleCount) {
                      particlesRef.current.push(new Particle(w, h, pColor, cfg.particleSpeed, scaleFactor, cfg.particleDirection || 'outwards'));
                  }
              }
           }
-
           for (let i = particlesRef.current.length - 1; i >= 0; i--) {
             const p = particlesRef.current[i];
             p.update(cfg.particleDirection || 'outwards');
             if (isDirectional) {
-                if (p.life <= 0) {
-                     particlesRef.current.splice(i, 1);
-                } else {
+                if (p.life <= 0) particlesRef.current.splice(i, 1);
+                else {
                      if (p.x < 0) p.x = w;
                      if (p.x > w) p.x = 0;
                      if (cfg.particleDirection === 'down' && p.y > h) p.y = -10;
@@ -959,7 +896,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           }
       }
 
-      // 6. Text (Title)
       if (cfg.text.enabled) {
           ctx.save();
           ctx.translate(shakeX, shakeY);
@@ -967,27 +903,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           ctx.globalAlpha = cfg.text.opacity;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          
-          if ('letterSpacing' in ctx) {
-              (ctx as any).letterSpacing = `${cfg.text.letterSpacing * scaleFactor}px`;
-          }
-
+          if ('letterSpacing' in ctx) (ctx as any).letterSpacing = `${cfg.text.letterSpacing * scaleFactor}px`;
           if (cfg.text.shadow) {
               ctx.shadowColor = 'black';
               ctx.shadowBlur = 15 * scaleFactor;
           }
           const textY = cfg.mode === 'circular' ? h - (150 * scaleFactor) : (200 * scaleFactor);
           const scaledFontSize = cfg.text.fontSize * scaleFactor;
-          
           ctx.font = `bold ${scaledFontSize}px "${cfg.text.fontFamily}"`;
           ctx.fillText(cfg.text.topText.toUpperCase(), cx, textY);
-          
           ctx.font = `normal ${scaledFontSize * 0.5}px "${cfg.text.fontFamily}"`;
           ctx.fillText(cfg.text.bottomText, cx, textY + (scaledFontSize * 1.2));
           ctx.restore();
       }
 
-      // 7. LYRICS
       const rawLines = cfg.lyrics.content.split('\n').filter(l => l.trim() !== '');
       const totalLines = rawLines.length;
 
@@ -1015,18 +944,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           ctx.translate(cx + shakeX, cy + shakeY + (cfg.lyrics.yOffset * scaleFactor));
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          
           let currentLineIndex = 0;
           let progress = 0;
-
           if (cfg.lyrics.syncData && cfg.lyrics.syncData.length > 0) {
               let foundIndex = -1;
               for (let i = 0; i < cfg.lyrics.syncData.length; i++) {
-                  if (currentPlayTime >= cfg.lyrics.syncData[i].time) {
-                      foundIndex = i;
-                  } else {
-                      break; 
-                  }
+                  if (currentPlayTime >= cfg.lyrics.syncData[i].time) foundIndex = i;
+                  else break; 
               }
               currentLineIndex = foundIndex;
               if (currentLineIndex >= 0) {
@@ -1042,7 +966,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
               currentLineIndex = Math.floor(globalProgress * totalLines);
               progress = (globalProgress * totalLines) % 1; 
           }
-          
           const scaledFontSize = cfg.lyrics.fontSize * scaleFactor;
           ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
 
@@ -1068,17 +991,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
               const prevLine = rawLines[currentLineIndex - 1] || "";
               const nextLine = rawLines[currentLineIndex + 1] || "";
               const lineHeight = scaledFontSize * 1.4;
-
               ctx.fillStyle = cfg.lyrics.color;
               ctx.globalAlpha = cfg.lyrics.opacity * 0.3;
               if (cfg.lyrics.animationStyle !== 'static') {
                   ctx.font = `normal ${scaledFontSize * 0.8}px "${cfg.lyrics.fontFamily}"`;
                   ctx.fillText(prevLine, 0, -lineHeight);
               }
-
               ctx.globalAlpha = cfg.lyrics.opacity;
               ctx.font = `bold ${scaledFontSize}px "${cfg.lyrics.fontFamily}"`;
-              
               if (cfg.lyrics.animationStyle === 'karaoke' && currentLineIndex >= 0) {
                   const charCount = Math.floor(activeLine.length * progress);
                   const filledPart = activeLine.substring(0, charCount);
@@ -1116,7 +1036,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           ctx.restore();
       }
 
-      // 8. Cinematic Overlay
       if (cfg.vignette > 0) {
           ctx.save();
           const grad = ctx.createRadialGradient(cx, cy, h/2, cx, cy, h);
@@ -1132,7 +1051,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           ctx.fillRect(0, 0, w, barH);
           ctx.fillRect(0, h - barH, w, barH);
       }
-
       animationRef.current = requestAnimationFrame(render);
     };
 
@@ -1140,93 +1058,70 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
     return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
   }, []);
 
-
-  // --- EXPORT LOGIC --- (Omitted for brevity, unchanged)
   const handleStartExport = async () => {
       setShowExportModal(false);
       setIsExporting(true);
       setExportProgress(0);
-      
       const resConfig = RESOLUTIONS[exportSettings.resolution];
       const targetWidth = resConfig.w;
       const targetHeight = resConfig.h;
-      
       if (canvasRef.current) {
           canvasRef.current.width = targetWidth;
           canvasRef.current.height = targetHeight;
       }
-
       const mimeType = "video/webm;codecs=vp9";
       let recorder: MediaRecorder | null = null;
       try {
         if (!MediaRecorder.isTypeSupported(mimeType)) {
-            if (MediaRecorder.isTypeSupported("video/webm")) {
-            } else {
+            if (!MediaRecorder.isTypeSupported("video/webm")) {
                 alert("Browser doesn't support WebM export. Please use Chrome/Firefox.");
                 setIsExporting(false);
                 return;
             }
         }
-
         const stream = canvasRef.current!.captureStream(exportSettings.fps);
         const audioTrack = streamDestRef.current!.stream.getAudioTracks()[0];
         stream.addTrack(audioTrack);
-
         let bits = 8000000; 
         if (exportSettings.quality === 'low') bits = 4000000;
         if (exportSettings.quality === 'high') bits = 25000000; 
-        
-        recorder = new MediaRecorder(stream, {
-            mimeType,
-            videoBitsPerSecond: bits
-        });
-
+        recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bits });
       } catch (e) {
           console.error("Recorder Setup Failed", e);
           setIsExporting(false);
           return;
       }
-
       mediaRecorderRef.current = recorder;
       recordedChunksRef.current = [];
-
       recorder.ondataavailable = (e) => {
           if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
-
       recorder.onstop = () => {
           const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
           const url = URL.createObjectURL(blob);
           setDownloadUrl(url);
           setIsExporting(false);
-          
           if (audioContextRef.current && analyserRef.current) {
              analyserRef.current.connect(audioContextRef.current.destination);
           }
-          
           if (audioRef.current) audioRef.current.volume = volume;
           if (canvasRef.current) {
               canvasRef.current.width = BASE_WIDTH;
               canvasRef.current.height = BASE_HEIGHT;
           }
       };
-
       if (analyserRef.current && audioContextRef.current) {
          analyserRef.current.disconnect(audioContextRef.current.destination);
       }
-      
       if (audioRef.current) {
           audioRef.current.currentTime = 0;
           audioRef.current.play();
       }
-      
       recorder.start();
-
       const checkProgress = setInterval(() => {
           if (!audioRef.current) return;
           const p = (audioRef.current.currentTime / audioRef.current.duration) * 100;
           setExportProgress(Math.min(p, 99));
-
           if (audioRef.current.ended) {
               clearInterval(checkProgress);
               recorder?.stop();
@@ -1282,7 +1177,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 ))}
                             </div>
                         </div>
-                        
                         <div>
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Frame Rate</label>
                             <div className="flex gap-2 bg-zinc-900 p-1 rounded-lg border border-zinc-800">
@@ -1290,7 +1184,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <button onClick={() => setExportSettings({...exportSettings, fps: 60})} className={`flex-1 py-2 text-sm font-medium rounded ${exportSettings.fps===60 ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>60 FPS</button>
                             </div>
                         </div>
-
                         <div>
                              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Quality (Bitrate)</label>
                              <div className="flex gap-2">
@@ -1301,7 +1194,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 ))}
                              </div>
                         </div>
-
                         <div className="pt-4 border-t border-zinc-800">
                              <div className="flex justify-between text-xs text-zinc-500 mb-4 font-mono">
                                  <span>EST. FILE SIZE</span>
@@ -1346,7 +1238,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                     <span className="text-sm font-semibold text-zinc-200">VibeStream</span>
                  </div>
              </div>
-
              <div className="flex items-center gap-3">
                  <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded transition-all">
                     <FileVideo size={14} /> EXPORT VIDEO
@@ -1356,7 +1247,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
 
         {/* --- MAIN EDITOR --- */}
         <div className="flex-1 flex overflow-hidden">
-            
             {/* 1. LAYERS PANEL (LEFT) */}
             <div className="w-64 bg-[#0a0a0a] border-r border-zinc-900 flex flex-col shrink-0 z-10">
                 <div className="p-4 border-b border-zinc-900">
@@ -1383,7 +1273,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             {/* 2. VIEWPORT (CENTER) */}
             <div className="flex-1 bg-[#050505] relative flex items-center justify-center p-8 overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-                
                 <div className="relative shadow-2xl shadow-black border border-zinc-900 aspect-video w-full max-h-full max-w-[1280px] bg-black">
                     <canvas ref={canvasRef} className="w-full h-full object-contain block" />
                     {downloadUrl && (
@@ -1416,8 +1305,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    
-                    {/* SCENE CONFIG */}
                     {activeLayer === 'scene' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Camera & Stage">
@@ -1440,8 +1327,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                              </ControlGroup>
                         </div>
                     )}
-
-                    {/* SPECTRUM CONFIG */}
                     {activeLayer === 'spectrum' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Mode">
@@ -1449,7 +1334,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     <button onClick={() => setConfig({...config, mode: 'circular'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.mode==='circular' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Circular</button>
                                     <button onClick={() => setConfig({...config, mode: 'linear'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.mode==='linear' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Linear</button>
                                 </div>
-                                
                                 <div className="mb-4">
                                     <label className="text-xs text-zinc-300 font-medium mb-2 block">Style</label>
                                     <select 
@@ -1458,11 +1342,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         className="w-full bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
                                     >
                                         <option value="bars">Bars (Equalizer)</option>
+                                        <option value="blocks">Blocks (Digital)</option>
+                                        <option value="bubbles">Bubbles (Abstract)</option>
                                         <option value="wave">Line Wave</option>
                                         <option value="curve">Filled Curve</option>
+                                        <option value="mirror-wave">Mirror Wave (Sym)</option>
                                     </select>
                                 </div>
-
                                 <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
                                     <span className="text-zinc-300">Enable Spectrum</span>
                                     <input type="checkbox" checked={config.showBars} onChange={e => setConfig({...config, showBars: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
@@ -1474,26 +1360,23 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <Slider label="Bar Count" min={32} max={256} step={16} value={config.barCount} onChange={(v) => setConfig({...config, barCount: v})} />
                                 <Slider label="Bar Width" min={1} max={20} step={1} value={config.barWidth} onChange={(v) => setConfig({...config, barWidth: v})} />
                                 <Slider label="Amplitude" min={0.5} max={3} step={0.1} value={config.barHeightScale} onChange={(v) => setConfig({...config, barHeightScale: v})} />
-                                
                                 {config.spectrumStyle === 'bars' && (
                                     <div className="flex items-center justify-between text-xs mt-4 p-2 bg-zinc-900 rounded border border-zinc-800">
                                         <span className="text-zinc-300">Round Caps</span>
                                         <input type="checkbox" checked={(config.barRoundness || 0) > 0.5} onChange={e => setConfig({...config, barRoundness: e.target.checked ? 1 : 0})} className="accent-indigo-500 w-4 h-4" />
                                     </div>
                                 )}
-                                {config.spectrumStyle === 'curve' && (
+                                {(config.spectrumStyle === 'curve' || config.spectrumStyle === 'mirror-wave') && (
                                      <div className="mt-4">
                                         <Slider label="Fill Opacity" min={0} max={1} step={0.1} value={config.fillOpacity ?? 0.5} onChange={(v) => setConfig({...config, fillOpacity: v})} />
                                      </div>
                                 )}
                              </ControlGroup>
-                             
                              <ControlGroup title="Appearance">
                                 <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
                                     <span className="flex items-center gap-2 text-zinc-300"><Zap size={12} className="text-yellow-400" /> Rainbow Mode</span>
                                     <input type="checkbox" checked={config.rainbowMode} onChange={e => setConfig({...config, rainbowMode: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
                                 </div>
-                                
                                 {config.rainbowMode ? (
                                     <div className="mt-2">
                                         <Slider label="Cycle Speed" min={0} max={5} step={0.5} value={config.colorCycleSpeed ?? 0.5} onChange={(v) => setConfig({...config, colorCycleSpeed: v})} />
@@ -1516,8 +1399,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                              </ControlGroup>
                         </div>
                     )}
-
-                    {/* PARTICLES CONFIG */}
                     {activeLayer === 'particles' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Emission">
@@ -1525,7 +1406,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     <span className="text-zinc-300">Enable Emitter</span>
                                     <input type="checkbox" checked={config.showParticles} onChange={e => setConfig({...config, showParticles: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
                                 </div>
-                                
                                 <div className="mb-4 space-y-3">
                                     <div>
                                         <label className="text-xs text-zinc-300 font-medium mb-2 block">Movement</label>
@@ -1540,7 +1420,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                             <option value="random">Floating Dust (Ambient)</option>
                                         </select>
                                     </div>
-                                    
                                     <div>
                                         <label className="text-xs text-zinc-300 font-medium mb-2 block">Shape Appearance</label>
                                         <select 
@@ -1557,14 +1436,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         </select>
                                     </div>
                                 </div>
-
                                 <Slider label="Max Particles" min={10} max={300} step={10} value={config.particleCount} onChange={(v) => setConfig({...config, particleCount: v})} />
                                 <Slider label="Velocity" min={0.5} max={5} step={0.5} value={config.particleSpeed} onChange={(v) => setConfig({...config, particleSpeed: v})} />
                              </ControlGroup>
                         </div>
                     )}
-
-                    {/* BACKGROUND CONFIG */}
                     {activeLayer === 'background' && (
                          <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Solid Color">
@@ -1598,8 +1474,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                              </ControlGroup>
                          </div>
                     )}
-
-                    {/* FOREGROUND CONFIG (CENTER ASSET) */}
                     {activeLayer === 'foreground' && (
                          <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Center Type">
@@ -1608,7 +1482,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     <button onClick={() => setConfig({...config, centerType: 'text'})} className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${config.centerType==='text' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}>Text Logo</button>
                                 </div>
                              </ControlGroup>
-
                              {config.centerType === 'image' ? (
                                 <ControlGroup title="Image Settings">
                                     <label className="block w-full h-32 border border-dashed border-zinc-800 rounded-lg bg-zinc-900/50 hover:bg-zinc-900 cursor-pointer relative overflow-hidden group transition-colors flex flex-col items-center justify-center">
@@ -1648,7 +1521,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                             className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-sm text-white font-bold outline-none focus:border-indigo-500 resize-none h-20"
                                             placeholder="LOGO TEXT (Use Enter for 2 rows)"
                                         />
-                                        
                                         <div>
                                             <label className="text-xs text-zinc-300 font-medium mb-1 block">Logo Font</label>
                                             <select 
@@ -1667,18 +1539,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                                 <option value="Inter">Inter (Clean)</option>
                                             </select>
                                         </div>
-
                                         <Slider label="Size" min={20} max={150} step={5} value={config.centerTextConfig?.fontSize || 60} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), fontSize: v} as any})} />
-                                        
                                         <ColorPicker label="Fill Color" value={config.centerTextConfig?.color || '#ffffff'} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), color: v} as any})} />
-                                        
                                         <div className="pt-2 border-t border-zinc-800/50">
                                             <ColorPicker label="Stroke Color" value={config.centerTextConfig?.strokeColor || '#000000'} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), strokeColor: v} as any})} />
                                             <div className="mt-2">
                                                 <Slider label="Stroke Width" min={0} max={10} step={0.5} value={config.centerTextConfig?.strokeWidth || 0} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), strokeWidth: v} as any})} />
                                             </div>
                                         </div>
-
                                         <div className="pt-2 border-t border-zinc-800/50">
                                              <ColorPicker label="Glow Color" value={config.centerTextConfig?.glowColor || '#a855f7'} onChange={(v) => setConfig({...config, centerTextConfig: {...(config.centerTextConfig || {}), glowColor: v} as any})} />
                                              <div className="mt-2">
@@ -1688,7 +1556,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     </div>
                                 </ControlGroup>
                              )}
-                             
                              <ControlGroup title="Reactivity">
                                  <div className="flex items-center justify-between text-xs p-2 bg-zinc-900 rounded border border-zinc-800">
                                       <span className="text-zinc-300">Pulse to Beat</span>
@@ -1703,8 +1570,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                              </ControlGroup>
                          </div>
                     )}
-
-                    {/* TEXT CONFIG (TITLE OVERLAY) */}
                     {activeLayer === 'text' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Content">
@@ -1747,8 +1612,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                              </ControlGroup>
                         </div>
                     )}
-
-                    {/* LYRICS CONFIG */}
                     {activeLayer === 'lyrics' && (
                          <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                             <ControlGroup title="Content">
@@ -1760,7 +1623,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         </p>
                                     </div>
                                 )}
-                                
                                 <div className="grid grid-cols-2 gap-2 mb-2">
                                     <button 
                                         onClick={handleGenerateLyrics}
@@ -1770,19 +1632,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         {isGeneratingLyrics ? <div className="animate-spin w-3 h-3 border-2 border-current border-t-transparent rounded-full" /> : <Wand2 size={14} />}
                                         {isGeneratingLyrics ? "..." : "AUTO-SYNC"}
                                     </button>
-                                    
                                     <label className="flex items-center justify-center gap-2 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-bold transition-all cursor-pointer">
                                         <Upload size={14} />
                                         UPLOAD FILE
                                         <input type="file" accept=".lrc,.srt,.txt" className="hidden" onChange={handleLyricsUpload} />
                                     </label>
                                 </div>
-                                
                                 <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
                                     <span className="text-zinc-300">Show Lyrics</span>
                                     <input type="checkbox" checked={config.lyrics?.enabled ?? false} onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, enabled: e.target.checked}}))} className="accent-indigo-500 w-4 h-4" />
                                 </div>
-
                                 <textarea 
                                     value={config.lyrics?.content ?? ""}
                                     onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, content: e.target.value}}))}
@@ -1794,17 +1653,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     Supported: .LRC, .SRT, or Plain Text
                                 </div>
                             </ControlGroup>
-                            
                             <ControlGroup title="Timing & Sync">
                                 {isSyncing ? (
                                     <div className="bg-red-900/20 border border-red-500/50 p-4 rounded-lg text-center space-y-2 animate-pulse">
                                         <div className="flex justify-center text-red-500"><Mic size={24} /></div>
                                         <h4 className="text-sm font-bold text-red-200">RECORDING TIMING</h4>
                                         <p className="text-xs text-red-300">Tap SPACEBAR for next line.</p>
-                                        <button 
-                                            onClick={stopSyncSession}
-                                            className="w-full py-1.5 bg-red-600 hover:bg-red-500 text-white rounded font-bold text-xs"
-                                        >
+                                        <button onClick={stopSyncSession} className="w-full py-1.5 bg-red-600 hover:bg-red-500 text-white rounded font-bold text-xs">
                                             STOP RECORDING
                                         </button>
                                     </div>
@@ -1824,7 +1679,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                     </div>
                                 )}
                             </ControlGroup>
-
                             <ControlGroup title="Animation Style">
                                 <div className="space-y-3">
                                     <select 
@@ -1837,11 +1691,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         <option value="scroll">Scrolling Credits</option>
                                         <option value="karaoke">Karaoke Fill</option>
                                     </select>
-                                    
                                     <Slider label="Vertical Offset" min={-500} max={500} step={10} value={config.lyrics?.yOffset ?? 0} onChange={(v) => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, yOffset: v}}))} />
                                 </div>
                             </ControlGroup>
-
                             <ControlGroup title="Typography">
                                 <div className="space-y-3">
                                     <select value={config.lyrics?.fontFamily ?? 'Inter'} onChange={e => setConfig(prev => ({...prev, lyrics: {...prev.lyrics, fontFamily: e.target.value}}))}
@@ -1865,8 +1717,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
 
         {/* --- BOTTOM TRANSPORT --- */}
         <div className="h-16 bg-[#0a0a0a] border-t border-zinc-900 flex items-center justify-between px-6 z-20 shrink-0">
-             
-             {/* Left: Info */}
              <div className="w-1/3 flex items-center gap-4">
                  <div className="w-10 h-10 bg-zinc-900 rounded flex items-center justify-center border border-zinc-800 text-zinc-500">
                      <Activity size={20} />
@@ -1876,8 +1726,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                      <span className="text-sm text-zinc-100 font-medium truncate w-64">{config.text.topText}</span>
                  </div>
              </div>
-
-             {/* Center: Playback */}
              <div className="w-1/3 flex flex-col items-center justify-center">
                  <div className="flex items-center gap-6">
                      <button onClick={() => { if(audioRef.current){ audioRef.current.currentTime = 0; } }} className="text-zinc-600 hover:text-zinc-300 transition-colors">
@@ -1886,16 +1734,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                      <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-lg shadow-indigo-500/20">
                          {isPlaying ? <Pause size={16} className="fill-current" /> : <Play size={16} className="fill-current ml-0.5" />}
                      </button>
-                     <button 
-                        onClick={() => setShowExportModal(true)} 
-                        className="text-zinc-600 hover:text-white transition-colors"
-                     >
+                     <button onClick={() => setShowExportModal(true)} className="text-zinc-600 hover:text-white transition-colors">
                         <Download size={16} />
                      </button>
                  </div>
              </div>
-
-             {/* Right: Volume & Time */}
              <div className="w-1/3 flex items-center justify-end gap-6">
                  <span className="text-xs font-mono text-zinc-500">
                     {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')} / {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
@@ -1912,8 +1755,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                  </div>
              </div>
         </div>
-
-        {/* Hidden Audio Element */}
         <audio 
             ref={audioRef} 
             src={audioUrl} 
@@ -1921,8 +1762,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
             onEnded={() => setIsPlaying(false)}
         />
-        
-        {/* Helper for Arrow Right Icon */}
         <div style={{display: 'none'}}>
             <ArrowRight size={20} />
         </div>
@@ -1930,19 +1769,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   );
 };
 
-// Helper for ArrowRight that was missing in imports
 function ArrowRight({ size }: { size: number }) {
   return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="5" y1="12" x2="19" y2="12" />
       <polyline points="12 5 19 12 12 19" />
     </svg>

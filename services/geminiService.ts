@@ -140,7 +140,7 @@ export const analyzeAudioForVisualizer = async (
     barHeightScale: 1.5,
     barRoundness: 1.0,
     fillOpacity: 0.5,
-    mirror: false,
+    mirror: true,
     showParticles: true,
     particleCount: 50,
     particleSpeed: 2,

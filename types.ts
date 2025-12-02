@@ -91,7 +91,7 @@ export interface VisualizerConfig {
   
   // Spectrum
   showBars: boolean;
-  spectrumStyle: 'bars' | 'wave' | 'curve'; 
+  spectrumStyle: 'bars' | 'wave' | 'curve' | 'blocks' | 'bubbles' | 'mirror-wave'; 
   spectrumScale: number; 
   barCount: number;
   barWidth: number;
