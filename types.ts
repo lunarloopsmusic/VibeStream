@@ -79,6 +79,8 @@ export interface VisualizerConfig {
   centerImage: string | null;
   centerImageSize: number;
   centerImageCircular: boolean;
+  centerImageStrokeWidth: number; // New
+  centerImageStrokeColor: string; // New
   centerTextConfig: CenterTextConfig; // New
 
   // Typography
@@ -91,13 +93,14 @@ export interface VisualizerConfig {
   
   // Spectrum
   showBars: boolean;
-  spectrumStyle: 'bars' | 'wave' | 'curve' | 'blocks' | 'bubbles' | 'mirror-wave'; 
+  spectrumStyle: 'bars' | 'wave' | 'curve' | 'blocks' | 'bubbles' | 'mirror-wave' | 'rays' | 'lattice' | 'frequency'; 
   spectrumScale: number; 
   barCount: number;
   barWidth: number;
   barHeightScale: number;
   barRoundness: number;
   showBaseCircularLine: boolean; // New
+  baseCircularLineWidth: number; // New
   fillOpacity: number;
   mirror: boolean;
   bloomStrength: number;

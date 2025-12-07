@@ -140,6 +140,7 @@ export const analyzeAudioForVisualizer = async (
     barHeightScale: 1.5,
     barRoundness: 1.0,
     showBaseCircularLine: false,
+    baseCircularLineWidth: 2,
     fillOpacity: 0.5,
     mirror: true,
     showParticles: true,
@@ -159,6 +160,8 @@ export const analyzeAudioForVisualizer = async (
     centerImage: null,
     centerImageSize: 1.0,
     centerImageCircular: true,
+    centerImageStrokeWidth: 0,
+    centerImageStrokeColor: "#ffffff",
     centerTextConfig: {
         content: "LOGO",
         fontFamily: "Russo One",

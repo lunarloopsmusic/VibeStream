@@ -367,23 +367,27 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
       if (preset === 'trap') {
           // Trap Nation Style: Circle, Shake, Particles, Base Ring
           newConfig.mode = 'circular';
-          newConfig.spectrumStyle = 'bars';
+          newConfig.spectrumStyle = 'rays';
           newConfig.showBaseCircularLine = true;
+          newConfig.baseCircularLineWidth = 4;
           newConfig.barRoundness = 0;
           newConfig.shakeStrength = 2.0; // Heavy shake
           newConfig.spectrumScale = 0.9;
           newConfig.barCount = 64;
-          newConfig.barWidth = 6;
+          newConfig.barWidth = 8;
           newConfig.barHeightScale = 2.0;
           newConfig.particleDirection = 'outwards';
           newConfig.showParticles = true;
           newConfig.particleStyle = 'circle';
-          newConfig.centerImageSize = 1.0;
+          newConfig.centerImageSize = 0.85; // Align with 0.9 spectrum
+          newConfig.centerImageCircular = true;
+          newConfig.centerImageStrokeWidth = 0;
       } else if (preset === 'ncs') {
           // NCS: Simple circle, thin ring
           newConfig.mode = 'circular';
           newConfig.spectrumStyle = 'bars';
           newConfig.showBaseCircularLine = true;
+          newConfig.baseCircularLineWidth = 2;
           newConfig.barRoundness = 0;
           newConfig.shakeStrength = 0.5;
           newConfig.spectrumScale = 1.1;
@@ -659,7 +663,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                 ctx.beginPath();
                 ctx.arc(0, 0, radius, 0, Math.PI * 2);
                 ctx.strokeStyle = fillStyle;
-                ctx.lineWidth = 2 * scaleFactor;
+                ctx.lineWidth = (cfg.baseCircularLineWidth || 2) * scaleFactor;
                 ctx.stroke();
             }
             
@@ -693,6 +697,55 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                     else ctx.fillStyle = fillStyle;
                     ctx.fill();
                 }
+            } else if (cfg.spectrumStyle === 'rays') {
+                for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * 4 * scaleFactor);
+                    const angle = (i / barsToRender) * Math.PI * 2;
+                    
+                    ctx.save();
+                    ctx.rotate(angle);
+                    
+                    if (cfg.rainbowMode) ctx.strokeStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    else ctx.strokeStyle = fillStyle;
+
+                    ctx.lineWidth = scaledBarWidth * 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(radius + 10, 0);
+                    ctx.lineTo(radius + 10 + barH, 0);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            } else if (cfg.spectrumStyle === 'lattice') {
+                 // Draw Points
+                 const points: {x:number, y:number}[] = [];
+                 for (let i = 0; i < barsToRender; i++) {
+                    const val = dataArray.length ? dataArray[i * step] : 10;
+                    const barH = (val * cfg.sensitivity * cfg.barHeightScale * scaleFactor);
+                    const angle = (i / barsToRender) * Math.PI * 2;
+                    const r = radius + barH;
+                    const x = Math.cos(angle) * r;
+                    const y = Math.sin(angle) * r;
+                    points.push({x, y});
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2 * scaleFactor, 0, Math.PI * 2);
+                    if (cfg.rainbowMode) ctx.fillStyle = `hsl(${(i / barsToRender) * 360 + (timeRef.current * 100)}, 100%, 60%)`;
+                    else ctx.fillStyle = fillStyle;
+                    ctx.fill();
+                 }
+                 // Connect neighbors
+                 ctx.strokeStyle = fillStyle;
+                 if (cfg.rainbowMode) ctx.strokeStyle = `rgba(255,255,255,0.2)`;
+                 ctx.lineWidth = 1;
+                 ctx.beginPath();
+                 for(let i=0; i<points.length; i++) {
+                     const next = points[(i+1) % points.length];
+                     ctx.moveTo(points[i].x, points[i].y);
+                     ctx.lineTo(next.x, next.y);
+                 }
+                 ctx.stroke();
+
             } else if (cfg.spectrumStyle === 'wave' || cfg.spectrumStyle === 'curve') {
                 ctx.beginPath();
                 ctx.strokeStyle = fillStyle;
@@ -744,7 +797,26 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             }
         } else {
             // LINEAR
-            if (cfg.spectrumStyle === 'mirror-wave') {
+            if (cfg.spectrumStyle === 'frequency') {
+                 ctx.beginPath();
+                 ctx.lineWidth = 2 * scaleFactor;
+                 const barW = w / barsToRender;
+                 for (let i = 0; i < barsToRender; i++) {
+                     const val = dataArray.length ? dataArray[i * step] : 10;
+                     const barH = (val * cfg.sensitivity * cfg.barHeightScale * scaleFactor);
+                     const x = i * barW;
+                     const y = h - barH;
+                     
+                     if (i===0) ctx.moveTo(x, h);
+                     ctx.lineTo(x, y);
+                     ctx.lineTo(x + barW, y);
+                     ctx.lineTo(x + barW, h);
+                 }
+                 ctx.strokeStyle = cfg.primaryColor;
+                 if (cfg.rainbowMode) ctx.strokeStyle = `hsl(${timeRef.current * 50}, 80%, 60%)`;
+                 else ctx.strokeStyle = cfg.primaryColor;
+                 ctx.stroke();
+            } else if (cfg.spectrumStyle === 'mirror-wave') {
                 ctx.beginPath();
                 ctx.lineWidth = scaledBarWidth;
                 const mid = barsToRender / 2;
@@ -904,12 +976,23 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
           const size = baseSize * pulse;
           ctx.save();
           ctx.translate(cx + shakeX, cy + shakeY);
+          
           if (cfg.centerImageCircular) {
               ctx.beginPath();
               ctx.arc(0, 0, size/2, 0, Math.PI * 2);
               ctx.clip();
           }
           ctx.drawImage(centerImageRef.current, -size/2, -size/2, size, size);
+          
+          // Draw Stroke (New)
+          if (cfg.centerImageCircular && cfg.centerImageStrokeWidth > 0) {
+              ctx.beginPath();
+              ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+              ctx.strokeStyle = cfg.centerImageStrokeColor || '#fff';
+              ctx.lineWidth = cfg.centerImageStrokeWidth * scaleFactor;
+              ctx.stroke();
+          }
+          
           ctx.restore();
       }
 
@@ -1429,6 +1512,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                         <option value="wave">Line Wave</option>
                                         <option value="curve">Filled Curve</option>
                                         <option value="mirror-wave">Mirror Wave (Sym)</option>
+                                        <option value="rays">Rays (Sunburst)</option>
+                                        <option value="lattice">Lattice (Network)</option>
+                                        <option value="frequency">Frequency (Line)</option>
                                     </select>
                                 </div>
                                 <div className="flex items-center justify-between text-xs mb-4 p-2 bg-zinc-900 rounded border border-zinc-800">
@@ -1443,9 +1529,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <Slider label="Bar Width" min={1} max={20} step={1} value={config.barWidth} onChange={(v) => setConfig({...config, barWidth: v})} />
                                 <Slider label="Amplitude" min={0.5} max={3} step={0.1} value={config.barHeightScale} onChange={(v) => setConfig({...config, barHeightScale: v})} />
                                 {config.mode === 'circular' && (
-                                     <div className="flex items-center justify-between text-xs mt-4 p-2 bg-zinc-900 rounded border border-zinc-800">
-                                        <span className="text-zinc-300">Show Base Ring</span>
-                                        <input type="checkbox" checked={config.showBaseCircularLine} onChange={e => setConfig({...config, showBaseCircularLine: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
+                                     <div className="mt-4 border-t border-zinc-800 pt-4">
+                                         <div className="flex items-center justify-between text-xs mb-2 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                            <span className="text-zinc-300">Show Base Ring</span>
+                                            <input type="checkbox" checked={config.showBaseCircularLine} onChange={e => setConfig({...config, showBaseCircularLine: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
+                                        </div>
+                                        {config.showBaseCircularLine && (
+                                            <Slider label="Base Ring Thickness" min={1} max={10} step={0.5} value={config.baseCircularLineWidth || 2} onChange={(v) => setConfig({...config, baseCircularLineWidth: v})} />
+                                        )}
                                     </div>
                                 )}
                                 {config.spectrumStyle === 'bars' && (
@@ -1597,6 +1688,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                                 <span className="text-zinc-300">Circular Crop</span>
                                                 <input type="checkbox" checked={config.centerImageCircular} onChange={e => setConfig({...config, centerImageCircular: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
                                             </div>
+                                            {config.centerImageCircular && (
+                                                <div className="pt-2 border-t border-zinc-800/50 mt-2">
+                                                    <Slider label="Border Width" min={0} max={10} step={0.5} value={config.centerImageStrokeWidth || 0} onChange={(v) => setConfig({...config, centerImageStrokeWidth: v})} />
+                                                    <div className="mt-2">
+                                                        <ColorPicker label="Border Color" value={config.centerImageStrokeColor || '#ffffff'} onChange={(v) => setConfig({...config, centerImageStrokeColor: v})} />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </ControlGroup>
