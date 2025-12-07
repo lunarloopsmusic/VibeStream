@@ -6,7 +6,7 @@ import {
   Video, Monitor, Volume2, VolumeX, Square, 
   RefreshCcw, Check, X, Film, Clock, FileVideo,
   Sparkles, Zap, FileText, Wand2, AlertTriangle, Mic,
-  Upload
+  Upload, LayoutTemplate
 } from 'lucide-react';
 import { VisualizerConfig, LyricLine } from '../types';
 import { generateLyrics } from '../services/geminiService';
@@ -23,7 +23,7 @@ const BASE_WIDTH = 1920;
 const BASE_HEIGHT = 1080;
 
 // --- TYPES FOR EDITOR STATE ---
-type LayerType = 'scene' | 'spectrum' | 'particles' | 'background' | 'foreground' | 'text' | 'lyrics';
+type LayerType = 'templates' | 'scene' | 'spectrum' | 'particles' | 'background' | 'foreground' | 'text' | 'lyrics';
 
 interface LayerItem {
     id: LayerType;
@@ -32,6 +32,7 @@ interface LayerItem {
 }
 
 const LAYERS: LayerItem[] = [
+    { id: 'templates', label: 'Templates', icon: LayoutTemplate },
     { id: 'scene', label: 'Global Scene', icon: Monitor },
     { id: 'spectrum', label: 'Audio Spectrum', icon: Activity },
     { id: 'particles', label: 'Particle System', icon: Sparkles },
@@ -320,7 +321,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [activeLayer, setActiveLayer] = useState<LayerType>('scene');
+  const [activeLayer, setActiveLayer] = useState<LayerType>('templates');
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
@@ -360,6 +361,51 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
 
   const particlesRef = useRef<Particle[]>([]);
   const timeRef = useRef<number>(0);
+
+  const applyPreset = (preset: 'trap' | 'ncs' | 'neon' | 'calm') => {
+      let newConfig = { ...config };
+      if (preset === 'trap') {
+          // Trap Nation Style: Circle, Shake, Particles, Base Ring
+          newConfig.mode = 'circular';
+          newConfig.spectrumStyle = 'bars';
+          newConfig.showBaseCircularLine = true;
+          newConfig.barRoundness = 0;
+          newConfig.shakeStrength = 2.0; // Heavy shake
+          newConfig.spectrumScale = 0.9;
+          newConfig.barCount = 64;
+          newConfig.barWidth = 6;
+          newConfig.barHeightScale = 2.0;
+          newConfig.particleDirection = 'outwards';
+          newConfig.showParticles = true;
+          newConfig.particleStyle = 'circle';
+          newConfig.centerImageSize = 1.0;
+      } else if (preset === 'ncs') {
+          // NCS: Simple circle, thin ring
+          newConfig.mode = 'circular';
+          newConfig.spectrumStyle = 'bars';
+          newConfig.showBaseCircularLine = true;
+          newConfig.barRoundness = 0;
+          newConfig.shakeStrength = 0.5;
+          newConfig.spectrumScale = 1.1;
+          newConfig.barCount = 100;
+          newConfig.barWidth = 3;
+          newConfig.barHeightScale = 1.2;
+          newConfig.centerImageCircular = true;
+          newConfig.showParticles = true;
+          newConfig.particleDirection = 'random';
+      } else if (preset === 'neon') {
+          // Linear Blocks
+          newConfig.mode = 'linear';
+          newConfig.spectrumStyle = 'blocks';
+          newConfig.mirror = true;
+          newConfig.shakeStrength = 0;
+          newConfig.colorMode = 'gradient';
+          newConfig.primaryColor = '#00ffcc';
+          newConfig.secondaryColor = '#ff00cc';
+          newConfig.bloomStrength = 40;
+      }
+      setConfig(newConfig);
+  };
 
   const handleLyricsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -607,6 +653,15 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
             ctx.translate(cx, cy);
             ctx.rotate(rotationAngle);
             if (isBeat) ctx.scale(1.02, 1.02);
+
+            // Draw Base Circular Line (Trap Nation Style)
+            if (cfg.showBaseCircularLine) {
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = fillStyle;
+                ctx.lineWidth = 2 * scaleFactor;
+                ctx.stroke();
+            }
             
             if (cfg.spectrumStyle === 'blocks') {
                 for (let i = 0; i < barsToRender; i++) {
@@ -1305,6 +1360,33 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    {activeLayer === 'templates' && (
+                        <div className="animate-in slide-in-from-right-4 fade-in duration-300 space-y-4">
+                            <button onClick={() => applyPreset('trap')} className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 hover:border-indigo-500 transition-all text-left group">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white">T</div>
+                                    <h3 className="text-sm font-bold text-white group-hover:text-indigo-400">Trap Nation</h3>
+                                </div>
+                                <p className="text-xs text-zinc-500">Classic circle visualizer with heavy shake and base ring.</p>
+                            </button>
+
+                            <button onClick={() => applyPreset('ncs')} className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 hover:border-yellow-500 transition-all text-left group">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center font-bold text-black">N</div>
+                                    <h3 className="text-sm font-bold text-white group-hover:text-yellow-400">NCS Style</h3>
+                                </div>
+                                <p className="text-xs text-zinc-500">Thin circular ring with high bar count and subtle pulse.</p>
+                            </button>
+
+                            <button onClick={() => applyPreset('neon')} className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-lg hover:bg-zinc-800 hover:border-cyan-500 transition-all text-left group">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-8 h-8 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-black">C</div>
+                                    <h3 className="text-sm font-bold text-white group-hover:text-cyan-400">Cyberpunk Blocks</h3>
+                                </div>
+                                <p className="text-xs text-zinc-500">Linear mirrored block spectrum with neon glitch vibe.</p>
+                            </button>
+                        </div>
+                    )}
                     {activeLayer === 'scene' && (
                         <div className="animate-in slide-in-from-right-4 fade-in duration-300">
                              <ControlGroup title="Camera & Stage">
@@ -1360,6 +1442,12 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl, mime
                                 <Slider label="Bar Count" min={32} max={256} step={16} value={config.barCount} onChange={(v) => setConfig({...config, barCount: v})} />
                                 <Slider label="Bar Width" min={1} max={20} step={1} value={config.barWidth} onChange={(v) => setConfig({...config, barWidth: v})} />
                                 <Slider label="Amplitude" min={0.5} max={3} step={0.1} value={config.barHeightScale} onChange={(v) => setConfig({...config, barHeightScale: v})} />
+                                {config.mode === 'circular' && (
+                                     <div className="flex items-center justify-between text-xs mt-4 p-2 bg-zinc-900 rounded border border-zinc-800">
+                                        <span className="text-zinc-300">Show Base Ring</span>
+                                        <input type="checkbox" checked={config.showBaseCircularLine} onChange={e => setConfig({...config, showBaseCircularLine: e.target.checked})} className="accent-indigo-500 w-4 h-4" />
+                                    </div>
+                                )}
                                 {config.spectrumStyle === 'bars' && (
                                     <div className="flex items-center justify-between text-xs mt-4 p-2 bg-zinc-900 rounded border border-zinc-800">
                                         <span className="text-zinc-300">Round Caps</span>

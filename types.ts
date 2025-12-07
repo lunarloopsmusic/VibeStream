@@ -97,6 +97,7 @@ export interface VisualizerConfig {
   barWidth: number;
   barHeightScale: number;
   barRoundness: number;
+  showBaseCircularLine: boolean; // New
   fillOpacity: number;
   mirror: boolean;
   bloomStrength: number;
